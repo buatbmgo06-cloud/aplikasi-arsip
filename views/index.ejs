@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Aplikasi manajemen arsip dokumen lokal berbasis Node.js — cepat, aman, dan offline-first." />
+  <title><%= appName %> — Local Archive System</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/css/custom.css" />
+</head>
+<body>
+
+<div class="app-layout">
+
+  <!-- ══════════════════ HEADER ══════════════════ -->
+  <header class="app-header">
+    <a class="app-logo" href="/" title="Kembali ke Home">
+      <div class="app-logo-icon">🗄️</div>
+      <span class="app-logo-text"><%= appName %></span>
+    </a>
+
+    <!-- Search Bar -->
+    <div class="search-wrapper">
+      <span class="search-icon">🔍</span>
+      <input
+        type="search"
+        id="searchInput"
+        class="search-input"
+        placeholder="Cari file atau folder... (ketik untuk memulai)"
+        autocomplete="off"
+        spellcheck="false"
+        aria-label="Cari file"
+      />
+    </div>
+
+    <!-- Header Actions -->
+    <div class="header-actions">
+      <button id="btnScan" class="header-btn header-btn--scan" title="Lihat hasil scan terbaru">
+        📷 Scan Terbaru
+      </button>
+      <button id="btnRecent" class="header-btn" title="Lihat file terbaru">
+        🕐 Terbaru
+      </button>
+      <a href="/api/stats" target="_blank" class="header-btn" title="Lihat statistik JSON">
+        📊 Stats
+      </a>
+    </div>
+  </header>
+
+  <!-- ══════════════════ SIDEBAR ══════════════════ -->
+  <aside class="app-sidebar" aria-label="Navigasi sidebar">
+
+    <!-- Stats Cards -->
+    <div class="sidebar-section">
+      <p class="sidebar-section-title">Statistik Arsip</p>
+      <div id="statsContainer">
+        <!-- Diisi oleh app.js -->
+        <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-value">...</div><div class="stat-label">Memuat</div></div>
+        <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-value">...</div><div class="stat-label">Memuat</div></div>
+        <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-value">...</div><div class="stat-label">Memuat</div></div>
+        <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-value">...</div><div class="stat-label">Memuat</div></div>
+      </div>
+    </div>
+
+    <!-- Filter Ekstensi -->
+    <div class="sidebar-section">
+      <p class="sidebar-section-title">Filter Tipe File</p>
+      <div id="extFilters">
+        <!-- Diisi oleh app.js -->
+      </div>
+    </div>
+
+    <!-- Folder Tree -->
+    <div class="sidebar-section" style="flex:1; overflow:hidden; display:flex; flex-direction:column;">
+      <p class="sidebar-section-title">Navigasi Folder</p>
+      <div id="folderTree" style="overflow-y:auto; flex:1;">
+        <!-- Diisi oleh app.js -->
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ══════════════════ MAIN CONTENT ══════════════════ -->
+  <main class="app-main" id="mainContent" aria-label="Area konten utama">
+
+    <!-- Toolbar: Breadcrumb + View Toggle -->
+    <div class="main-toolbar">
+      <nav class="breadcrumb-wrap" id="breadcrumb" aria-label="Navigasi breadcrumb">
+        <span class="breadcrumb-current">Home</span>
+      </nav>
+
+      <span class="result-count" id="resultCount"></span>
+
+      <!-- Loading spinner (inline dengan toolbar) -->
+      <div id="loadingSpinner" class="hidden" style="margin-left:4px;">
+        <div class="spinner" aria-label="Memuat..."></div>
+      </div>
+
+      <!-- Grid / List Toggle -->
+      <div class="view-toggle" role="group" aria-label="Pilih tampilan">
+        <button id="btnGrid" class="view-btn active" title="Tampilan Grid" aria-pressed="true">⊞</button>
+        <button id="btnList" class="view-btn" title="Tampilan List" aria-pressed="false">☰</button>
+      </div>
+    </div>
+
+    <!-- File & Folder Display Area -->
+    <div class="file-content-area">
+      <div id="fileArea" class="file-grid" aria-label="Daftar file dan folder">
+        <!-- Skeleton loading -->
+        <div class="empty-state">
+          <div class="spinner" style="width:48px;height:48px;border-width:4px;"></div>
+          <p class="empty-title" style="margin-top:20px;">Memuat arsip...</p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+</div>
+
+<!-- ══════════════════ PREVIEW MODAL ══════════════════ -->
+<div id="previewModal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
+  <div class="modal-container">
+    <div class="modal-header">
+      <h2 class="modal-title" id="previewTitle">Preview File</h2>
+      <div class="modal-actions">
+        <a id="previewDownloadBtn" href="#" download class="modal-download-link" aria-label="Download file">
+          ⬇️ Unduh
+        </a>
+        <button class="modal-close-btn" onclick="closePreview()" aria-label="Tutup preview">
+          ✕ Tutup
+        </button>
+      </div>
+    </div>
+    <div class="modal-body" id="previewContent" aria-live="polite">
+      <!-- Konten preview diisi oleh app.js -->
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ INFO BAR (bottom) ══════════════════ -->
+<div style="
+  position: fixed; bottom: 0; right: 0; left: 280px;
+  display: flex; align-items: center; justify-content: flex-end;
+  padding: 4px 20px;
+  background: rgba(13,17,23,0.9);
+  border-top: 1px solid rgba(255,255,255,0.05);
+  font-size: 11px;
+  color: rgba(139,148,158,0.7);
+  z-index: 50;
+  gap: 12px;
+">
+  <span>🔒 Data 100% Lokal — Tidak ada koneksi cloud</span>
+  <span>•</span>
+  <span>Server: <strong style="color:#3b82f6;"><%= serverUrl %></strong></span>
+  <span>•</span>
+  <span>Folder: <strong style="color:#8b949e;"><%= archiveDir %></strong></span>
+</div>
+
+<!-- ══════════════════ SCRIPTS ══════════════════ -->
+<script src="/js/app.js"></script>
+
+</body>
+</html>
