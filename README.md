@@ -1,8 +1,8 @@
-# 🗄️ Local Archive System
+# Local Archive System
 
 Aplikasi manajemen arsip dokumen berbasis **Full Local Storage** menggunakan Node.js. Berjalan 100% offline di jaringan lokal (LAN) tanpa ketergantungan cloud.
 
-## ✨ Fitur Utama
+## Fitur Utama
 
 - 📁 **Auto-Sync** — Memindai folder arsip saat startup & sinkronisasi realtime via chokidar
 - 🔍 **Full-Text Search** — Pencarian cepat menggunakan SQLite FTS5
@@ -12,7 +12,7 @@ Aplikasi manajemen arsip dokumen berbasis **Full Local Storage** menggunakan Nod
 - 🌐 **LAN Sharing** — Akses dari perangkat lain di jaringan yang sama
 - 🔒 **Aman** — Proteksi Directory Traversal, 100% lokal
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Layer | Teknologi |
 |-------|-----------|
@@ -22,7 +22,7 @@ Aplikasi manajemen arsip dokumen berbasis **Full Local Storage** menggunakan Nod
 | Frontend | Vanilla JS + Custom CSS (dark theme) |
 | Template | EJS |
 
-## 🚀 Cara Menjalankan
+## Cara Menjalankan
 
 ### 1. Prasyarat
 
