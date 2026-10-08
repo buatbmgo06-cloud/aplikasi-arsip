@@ -77,13 +77,13 @@ Output di terminal:
 [Indexer] Memulai pemindaian awal: C:/DataArsip
 [Indexer] ✅ Selesai! 1234 file & 45 folder diindeks dalam 2.31s
 
-🚀 Server berjalan!
+ Server berjalan!
 
    Local:   http://localhost:3000
    Network: http://192.168.1.100:3000  (Wi-Fi)
 ```
 
-## 📁 Struktur Proyek
+## Struktur Proyek
 
 ```
 local-archive-app/
@@ -122,7 +122,7 @@ local-archive-app/
 | GET | `/api/extensions` | Daftar ekstensi |
 | GET | `/api/health` | Health check |
 
-## 🔒 Keamanan
+## Keamanan
 
 - **Directory Traversal**: Semua path divalidasi dengan `path.resolve()` + `startsWith(ARCHIVE_DIR)`
 - **Soft Delete**: File yang dihapus hanya ditandai `is_deleted=1`, tidak ada penghapusan fisik
