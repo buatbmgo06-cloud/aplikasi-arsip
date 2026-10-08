@@ -102,7 +102,11 @@ function initializeSchema(db) {
     );
   `);
 
-  // Trigger untuk menjaga FTS tetap sinkron dengan tabel files
+  // Trigger untuk menjaga FTS tetap sinkron dengan tabel files.
+  // CATATAN: Trigger AFTER INSERT aktif untuk INSERT biasa.
+  // Trigger AFTER UPDATE aktif untuk UPDATE biasa.
+  // INSERT...ON CONFLICT DO UPDATE (UPSERT) TIDAK memicu trigger apapun saat konflik,
+  // sehingga FTS di-rebuild secara eksplisit via rebuildFts() setelah scan/upsert.
   db.exec(`
     CREATE TRIGGER IF NOT EXISTS files_fts_insert
     AFTER INSERT ON files BEGIN
@@ -133,4 +137,18 @@ function closeDb() {
   }
 }
 
-module.exports = { getDb, closeDb };
+/**
+ * Rebuild seluruh FTS5 index dari tabel files.
+ * Dipanggil setelah initialScan atau setelah upsert tunggal (update file).
+ * Aman dijalankan kapan saja — FTS akan konsisten kembali.
+ */
+function rebuildFts() {
+  const database = getDb();
+  try {
+    database.exec(`INSERT INTO files_fts(files_fts) VALUES('rebuild')`);
+  } catch (err) {
+    console.error('[DB] Gagal rebuild FTS index:', err.message);
+  }
+}
+
+module.exports = { getDb, closeDb, rebuildFts };

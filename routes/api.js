@@ -11,6 +11,12 @@ const {
   getRecentFiles,
   getFolderTree,
   getScannedFiles,
+  deleteFile,
+  deleteFolder,
+  openFileExternal,
+  openFileWithDialog,
+  openFileWithApp,
+  openFolderInExplorer,
 } = require('../controllers/archiveController');
 
 const { searchFiles, getExtensions } = require('../controllers/searchController');
@@ -46,6 +52,26 @@ router.get('/extensions', getExtensions);
 // ─── Scan ────────────────────────────────────────────────────────────────────
 // GET /api/scan/recent?limit=20  — file hasil scan terbaru
 router.get('/scan/recent', getScannedFiles);
+
+// ─── Delete ──────────────────────────────────────────────────────────────────
+// DELETE /api/files/:id  — hapus file (fisik + database)
+router.delete('/files/:id', deleteFile);
+
+// DELETE /api/folders/:id  — hapus folder beserta isinya (fisik + database)
+router.delete('/folders/:id', deleteFolder);
+
+// ─── Open External ──────────────────────────────────────────────────────────
+// POST /api/files/open/:id  — buka file dengan aplikasi default sistem
+router.post('/files/open/:id', openFileExternal);
+
+// POST /api/files/openwith/:id  — buka dialog "Open With" Windows
+router.post('/files/openwith/:id', openFileWithDialog);
+
+// POST /api/files/openwithapp/:id?app=notepad  — buka dengan aplikasi spesifik
+router.post('/files/openwithapp/:id', openFileWithApp);
+
+// POST /api/folders/open/:id  — buka folder di Windows Explorer
+router.post('/folders/open/:id', openFolderInExplorer);
 
 // ─── Health Check ────────────────────────────────────────────────────────────
 router.get('/health', (req, res) => {

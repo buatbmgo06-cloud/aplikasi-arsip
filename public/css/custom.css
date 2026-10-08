@@ -510,6 +510,13 @@ body {
   margin-top: 2px;
 }
 
+.file-date {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  opacity: 0.8;
+}
+
 .file-actions {
   margin-top: 4px;
   gap: 6px;
@@ -605,6 +612,8 @@ body {
 .file-meta-path { font-size: 11px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .list-size { font-size: 12px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+
+.list-date { font-size: 11px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; opacity: 0.8; }
 
 .list-ext-badge, .folder-badge {
   padding: 2px 8px;
@@ -840,6 +849,237 @@ body {
   .file-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
 }
 
+/* ─── Delete Buttons ─────────────────────────────────────────── */
+.delete-btn {
+  background: rgba(239, 68, 68, 0.1) !important;
+  border-color: rgba(239, 68, 68, 0.3) !important;
+  color: #fca5a5 !important;
+}
+
+.delete-btn:hover {
+  background: rgba(239, 68, 68, 0.85) !important;
+  border-color: #ef4444 !important;
+  color: #fff !important;
+}
+
+.delete-btn-sm {
+  color: #fca5a5 !important;
+}
+
+.delete-btn-sm:hover {
+  background: rgba(239, 68, 68, 0.85) !important;
+  border-color: #ef4444 !important;
+  color: #fff !important;
+}
+
+/* ─── Notification Toast ──────────────────────────────────────── */
+.app-notification {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  padding: 12px 20px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  z-index: 9999;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  animation: notifSlideIn 0.3s ease forwards;
+  max-width: 500px;
+}
+
+.app-notification--success {
+  background: rgba(16, 185, 129, 0.9);
+  color: #fff;
+  border: 1px solid rgba(16, 185, 129, 0.5);
+}
+
+.app-notification--error {
+  background: rgba(239, 68, 68, 0.9);
+  color: #fff;
+  border: 1px solid rgba(239, 68, 68, 0.5);
+}
+
+.app-notification--info {
+  background: rgba(59, 130, 246, 0.9);
+  color: #fff;
+  border: 1px solid rgba(59, 130, 246, 0.5);
+}
+
+.app-notification--hide {
+  animation: notifSlideOut 0.3s ease forwards;
+}
+
+@keyframes notifSlideIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+@keyframes notifSlideOut {
+  from { opacity: 1; transform: translateX(-50%) translateY(0); }
+  to   { opacity: 0; transform: translateX(-50%) translateY(20px); }
+}
+
+/* ─── Context Menu ────────────────────────────────────────────── */
+.ctx-menu {
+  position: fixed;
+  z-index: 10000;
+  min-width: 200px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.05);
+  padding: 4px 0;
+  backdrop-filter: blur(12px);
+  animation: ctxFadeIn 0.12s ease;
+}
+
+.ctx-item {
+  display: block;
+  width: 100%;
+  padding: 8px 16px;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.ctx-item:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.ctx-item--danger {
+  color: #fca5a5;
+}
+
+.ctx-item--danger:hover {
+  background: #ef4444;
+  color: #fff;
+}
+
+.ctx-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+
+@keyframes ctxFadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
 /* ─── Utility ────────────────────────────────────────────────── */
 .hidden { display: none !important; }
 .flex { display: flex; }
+
+/* ─── Context Menu: Item dengan ikon ─────────────────────────── */
+.ctx-item-icon {
+  display: inline-block;
+  width: 18px;
+  text-align: center;
+  margin-right: 8px;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.ctx-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 16px;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+  position: relative;
+  gap: 0;
+}
+
+/* ─── Submenu "Buka Dengan" ──────────────────────────────────── */
+.ctx-item--has-sub {
+  justify-content: space-between;
+}
+
+.ctx-item--has-sub::after {
+  content: '›';
+  font-size: 16px;
+  color: var(--text-secondary);
+  margin-left: auto;
+  padding-left: 8px;
+  flex-shrink: 0;
+}
+
+.ctx-submenu-wrap {
+  position: relative;
+}
+
+.ctx-submenu {
+  position: absolute;
+  left: 100%;
+  top: -4px;
+  min-width: 210px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.05);
+  padding: 4px 0;
+  z-index: 10001;
+  display: none;
+  animation: ctxFadeIn 0.12s ease;
+}
+
+/* Jika submenu terlalu ke kanan, tampilkan di sebelah kiri */
+.ctx-submenu--left {
+  left: auto;
+  right: 100%;
+}
+
+.ctx-submenu-wrap:hover .ctx-submenu {
+  display: block;
+}
+
+.ctx-submenu-header {
+  padding: 4px 14px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.ctx-submenu .ctx-item {
+  padding: 7px 14px;
+  font-size: 12.5px;
+}
+
+.ctx-app-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  font-size: 13px;
+  margin-right: 9px;
+  flex-shrink: 0;
+}
+
+.ctx-app-badge--blue   { background: rgba(59,130,246,0.2); }
+.ctx-app-badge--green  { background: rgba(34,197,94,0.2);  }
+.ctx-app-badge--orange { background: rgba(249,115,22,0.2); }
+.ctx-app-badge--gray   { background: rgba(139,148,158,0.15);}
+.ctx-app-badge--purple { background: rgba(168,85,247,0.2); }
+.ctx-app-badge--red    { background: rgba(239,68,68,0.2);  }
+

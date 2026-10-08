@@ -2,7 +2,10 @@
 
 const path = require('path');
 const fs = require('fs');
+const fsPromises = require('fs/promises');
+const { execFile } = require('child_process');
 const { getDb } = require('../config/database');
+const { formatFileSize } = require('../utils/formatUtils');
 
 const ARCHIVE_DIR = process.env.ARCHIVE_DIR_PATH
   ? path.resolve(process.env.ARCHIVE_DIR_PATH)
@@ -17,14 +20,6 @@ function validatePath(requestedPath) {
     throw new Error('FORBIDDEN: Akses keluar dari direktori arsip tidak diizinkan');
   }
   return resolved;
-}
-
-// ─── Helper: Format ukuran file ─────────────────────────────────────────────
-function formatFileSize(bytes) {
-  if (bytes === 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${units[i]}`;
 }
 
 /**
@@ -125,9 +120,11 @@ function downloadFile(req, res) {
   }
 
   // Set header Content-Disposition untuk force download
+  // Gunakan ukuran aktual dari stat agar Content-Length tidak stale (Bug #4)
+  const actualStat = fs.statSync(resolvedPath);
   res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.filename)}"`);
   res.setHeader('Content-Type', file.mime_type || 'application/octet-stream');
-  res.setHeader('Content-Length', file.file_size);
+  res.setHeader('Content-Length', actualStat.size);
 
   const stream = fs.createReadStream(resolvedPath);
   stream.on('error', (err) => {
@@ -194,7 +191,12 @@ function previewFile(req, res) {
       'Accept-Ranges': 'bytes',
       'Content-Disposition': `inline; filename="${encodeURIComponent(file.filename)}"`,
     });
-    fs.createReadStream(resolvedPath).pipe(res);
+    const stream = fs.createReadStream(resolvedPath);
+    stream.on('error', (err) => {
+      console.error('[Preview] Stream error:', err);
+      if (!res.headersSent) res.status(500).json({ error: 'Gagal membaca file' });
+    });
+    stream.pipe(res);
   }
 }
 
@@ -330,7 +332,6 @@ function getScannedFiles(req, res) {
   `).all(limit);
 
   // Statistik scan hari ini
-  const today = new Date().toISOString().slice(0, 10);
   const todayCount = db.prepare(`
     SELECT COUNT(*) as count, SUM(file_size) as total_size
     FROM files
@@ -348,10 +349,336 @@ function getScannedFiles(req, res) {
     })),
     total: files.length,
     today: {
-      date: today,
+      date: new Date().toISOString().slice(0, 10),
       count: todayCount.count || 0,
       total_size_formatted: formatFileSize(todayCount.total_size || 0),
     },
+  });
+}
+
+/**
+ * DELETE /api/files/:id
+ * Menghapus file secara permanen (fisik + soft-delete di database)
+ */
+async function deleteFile(req, res) {
+  const db = getDb();
+  const fileId = parseInt(req.params.id, 10);
+
+  if (isNaN(fileId)) {
+    return res.status(400).json({ error: 'ID file tidak valid' });
+  }
+
+  const file = db.prepare(`
+    SELECT * FROM files WHERE id = ? AND is_deleted = 0
+  `).get(fileId);
+
+  if (!file) {
+    return res.status(404).json({ error: 'File tidak ditemukan' });
+  }
+
+  // Validasi path (defense in depth)
+  const resolvedPath = path.resolve(file.absolute_path);
+  if (!resolvedPath.startsWith(ARCHIVE_DIR + path.sep) && resolvedPath !== ARCHIVE_DIR) {
+    return res.status(403).json({ error: 'Akses ditolak' });
+  }
+
+  // Hapus file fisik dari disk
+  try {
+    if (fs.existsSync(resolvedPath)) {
+      await fsPromises.unlink(resolvedPath);
+    }
+  } catch (err) {
+    console.error('[Delete] Gagal menghapus file fisik:', err);
+    return res.status(500).json({ error: 'Gagal menghapus file dari disk: ' + err.message });
+  }
+
+  // Soft-delete di database
+  db.prepare(`
+    UPDATE files SET is_deleted = 1, updated_at = datetime('now','localtime')
+    WHERE id = ?
+  `).run(fileId);
+
+  console.log(`[Delete] File dihapus: ${file.relative_path}`);
+  return res.json({
+    success: true,
+    message: `File "${file.filename}" berhasil dihapus`,
+    deleted: { id: file.id, filename: file.filename, relative_path: file.relative_path },
+  });
+}
+
+/**
+ * DELETE /api/folders/:id
+ * Menghapus folder beserta isinya secara permanen (fisik + soft-delete di database)
+ */
+async function deleteFolder(req, res) {
+  const db = getDb();
+  const folderId = parseInt(req.params.id, 10);
+
+  if (isNaN(folderId)) {
+    return res.status(400).json({ error: 'ID folder tidak valid' });
+  }
+
+  const folder = db.prepare(`
+    SELECT * FROM folders WHERE id = ? AND is_deleted = 0
+  `).get(folderId);
+
+  if (!folder) {
+    return res.status(404).json({ error: 'Folder tidak ditemukan' });
+  }
+
+  // Validasi path (defense in depth)
+  const resolvedPath = path.resolve(folder.absolute_path);
+  if (!resolvedPath.startsWith(ARCHIVE_DIR + path.sep) && resolvedPath !== ARCHIVE_DIR) {
+    return res.status(403).json({ error: 'Akses ditolak' });
+  }
+
+  // Hitung jumlah item yang akan dihapus untuk informasi user
+  const childFiles = db.prepare(`
+    SELECT COUNT(*) as count FROM files
+    WHERE (parent_path = ? OR parent_path LIKE ?) AND is_deleted = 0
+  `).get(folder.relative_path, folder.relative_path + '/%');
+
+  const childFolders = db.prepare(`
+    SELECT COUNT(*) as count FROM folders
+    WHERE (parent_path = ? OR parent_path LIKE ? OR relative_path = ?) AND is_deleted = 0
+  `).get(folder.relative_path, folder.relative_path + '/%', folder.relative_path);
+
+  // Hapus folder fisik dari disk (rekursif)
+  try {
+    if (fs.existsSync(resolvedPath)) {
+      await fsPromises.rm(resolvedPath, { recursive: true, force: true });
+    }
+  } catch (err) {
+    console.error('[Delete] Gagal menghapus folder fisik:', err);
+    return res.status(500).json({ error: 'Gagal menghapus folder dari disk: ' + err.message });
+  }
+
+  // Soft-delete di database: folder itu sendiri + semua subfolder + semua file di dalamnya
+  const softDeleteAll = db.transaction(() => {
+    // Soft-delete folder ini
+    db.prepare(`
+      UPDATE folders SET is_deleted = 1, updated_at = datetime('now','localtime')
+      WHERE id = ?
+    `).run(folderId);
+
+    // Soft-delete subfolder yang ada di dalamnya
+    db.prepare(`
+      UPDATE folders SET is_deleted = 1, updated_at = datetime('now','localtime')
+      WHERE (parent_path = ? OR parent_path LIKE ?) AND is_deleted = 0
+    `).run(folder.relative_path, folder.relative_path + '/%');
+
+    // Soft-delete semua file di dalamnya
+    db.prepare(`
+      UPDATE files SET is_deleted = 1, updated_at = datetime('now','localtime')
+      WHERE (parent_path = ? OR parent_path LIKE ?) AND is_deleted = 0
+    `).run(folder.relative_path, folder.relative_path + '/%');
+  });
+
+  softDeleteAll();
+
+  console.log(`[Delete] Folder dihapus: ${folder.relative_path} (${childFiles.count} file, ${childFolders.count} folder)`);
+  return res.json({
+    success: true,
+    message: `Folder "${folder.folder_name}" berhasil dihapus`,
+    deleted: {
+      id: folder.id,
+      folder_name: folder.folder_name,
+      relative_path: folder.relative_path,
+      files_deleted: childFiles.count,
+      folders_deleted: childFolders.count,
+    },
+  });
+}
+
+/**
+ * POST /api/files/open/:id
+ * Membuka file dengan aplikasi default sistem (Windows)
+ */
+function openFileExternal(req, res) {
+  const db = getDb();
+  const fileId = parseInt(req.params.id, 10);
+
+  if (isNaN(fileId)) {
+    return res.status(400).json({ error: 'ID file tidak valid' });
+  }
+
+  const file = db.prepare(`
+    SELECT * FROM files WHERE id = ? AND is_deleted = 0
+  `).get(fileId);
+
+  if (!file) {
+    return res.status(404).json({ error: 'File tidak ditemukan' });
+  }
+
+  const resolvedPath = path.resolve(file.absolute_path);
+  if (!resolvedPath.startsWith(ARCHIVE_DIR + path.sep) && resolvedPath !== ARCHIVE_DIR) {
+    return res.status(403).json({ error: 'Akses ditolak' });
+  }
+
+  if (!fs.existsSync(resolvedPath)) {
+    return res.status(404).json({ error: 'File fisik tidak ditemukan' });
+  }
+
+  // Gunakan execFile (bukan exec) untuk menghindari command injection
+  // 'start' adalah perintah internal cmd.exe, jadi harus via cmd /c
+  execFile('cmd.exe', ['/c', 'start', '', resolvedPath], { windowsHide: true }, (err) => {
+    if (err) {
+      console.error('[Open] Gagal membuka file:', err);
+      return res.status(500).json({ error: 'Gagal membuka file: ' + err.message });
+    }
+    console.log(`[Open] File dibuka: ${file.relative_path}`);
+    return res.json({ success: true, message: `File "${file.filename}" dibuka` });
+  });
+}
+
+/**
+ * POST /api/files/openwith/:id
+ * Membuka dialog "Open With" Windows agar user bisa memilih aplikasi
+ */
+function openFileWithDialog(req, res) {
+  const db = getDb();
+  const fileId = parseInt(req.params.id, 10);
+
+  if (isNaN(fileId)) {
+    return res.status(400).json({ error: 'ID file tidak valid' });
+  }
+
+  const file = db.prepare(`
+    SELECT * FROM files WHERE id = ? AND is_deleted = 0
+  `).get(fileId);
+
+  if (!file) {
+    return res.status(404).json({ error: 'File tidak ditemukan' });
+  }
+
+  const resolvedPath = path.resolve(file.absolute_path);
+  if (!resolvedPath.startsWith(ARCHIVE_DIR + path.sep) && resolvedPath !== ARCHIVE_DIR) {
+    return res.status(403).json({ error: 'Akses ditolak' });
+  }
+
+  if (!fs.existsSync(resolvedPath)) {
+    return res.status(404).json({ error: 'File fisik tidak ditemukan' });
+  }
+
+  // Membuka dialog "Open With" Windows via rundll32
+  execFile(
+    'rundll32.exe',
+    ['shell32.dll,OpenAs_RunDLL', resolvedPath],
+    { windowsHide: false },
+    (err) => {
+      if (err) {
+        console.error('[OpenWith] Gagal membuka dialog:', err);
+        return res.status(500).json({ error: 'Gagal membuka dialog: ' + err.message });
+      }
+    }
+  );
+
+  // Langsung respon ke client (tidak perlu tunggu dialog ditutup user)
+  console.log(`[OpenWith] Dialog dibuka untuk: ${file.relative_path}`);
+  return res.json({ success: true, message: `Dialog "Buka Dengan" dibuka untuk "${file.filename}"` });
+}
+
+/**
+ * POST /api/files/openwithapp/:id
+ * Membuka file dengan aplikasi spesifik (misal: notepad, wordpad)
+ * Query param: ?app=notepad | ?app=wordpad | ?app=mspaint | dll.
+ */
+function openFileWithApp(req, res) {
+  const db = getDb();
+  const fileId = parseInt(req.params.id, 10);
+
+  if (isNaN(fileId)) {
+    return res.status(400).json({ error: 'ID file tidak valid' });
+  }
+
+  // Daftar aplikasi yang diizinkan (whitelist keamanan)
+  const ALLOWED_APPS = {
+    notepad:  'notepad.exe',
+    wordpad:  'write.exe',
+    mspaint:  'mspaint.exe',
+    explorer: 'explorer.exe',
+    photos:   'ms-photos:',   // Windows Photos (via URI)
+  };
+
+  const appKey = (req.query.app || '').toLowerCase().trim();
+  if (!appKey || !ALLOWED_APPS[appKey]) {
+    return res.status(400).json({
+      error: 'Aplikasi tidak valid',
+      allowed: Object.keys(ALLOWED_APPS),
+    });
+  }
+
+  const file = db.prepare(`
+    SELECT * FROM files WHERE id = ? AND is_deleted = 0
+  `).get(fileId);
+
+  if (!file) {
+    return res.status(404).json({ error: 'File tidak ditemukan' });
+  }
+
+  const resolvedPath = path.resolve(file.absolute_path);
+  if (!resolvedPath.startsWith(ARCHIVE_DIR + path.sep) && resolvedPath !== ARCHIVE_DIR) {
+    return res.status(403).json({ error: 'Akses ditolak' });
+  }
+
+  if (!fs.existsSync(resolvedPath)) {
+    return res.status(404).json({ error: 'File fisik tidak ditemukan' });
+  }
+
+  const appExe = ALLOWED_APPS[appKey];
+
+  // URI scheme (ms-photos:) — buka via start
+  if (appExe.startsWith('ms-')) {
+    execFile('cmd.exe', ['/c', 'start', '', appExe + 'fileactivation?filePath=' + encodeURIComponent(resolvedPath)],
+      { windowsHide: true }, () => {});
+  } else {
+    execFile(appExe, [resolvedPath], { windowsHide: false }, (err) => {
+      if (err) {
+        console.error(`[OpenWithApp] Gagal membuka dengan ${appExe}:`, err);
+      }
+    });
+  }
+
+  console.log(`[OpenWithApp] "${file.filename}" dibuka dengan ${appExe}`);
+  return res.json({ success: true, message: `File dibuka dengan ${appKey}` });
+}
+
+/**
+ * POST /api/folders/open/:id
+ * Membuka folder di Windows Explorer
+ */
+function openFolderInExplorer(req, res) {
+  const db = getDb();
+  const folderId = parseInt(req.params.id, 10);
+
+  if (isNaN(folderId)) {
+    return res.status(400).json({ error: 'ID folder tidak valid' });
+  }
+
+  const folder = db.prepare(`
+    SELECT * FROM folders WHERE id = ? AND is_deleted = 0
+  `).get(folderId);
+
+  if (!folder) {
+    return res.status(404).json({ error: 'Folder tidak ditemukan' });
+  }
+
+  const resolvedPath = path.resolve(folder.absolute_path);
+  if (!resolvedPath.startsWith(ARCHIVE_DIR + path.sep) && resolvedPath !== ARCHIVE_DIR) {
+    return res.status(403).json({ error: 'Akses ditolak' });
+  }
+
+  if (!fs.existsSync(resolvedPath)) {
+    return res.status(404).json({ error: 'Folder tidak ditemukan di disk' });
+  }
+
+  // Gunakan execFile untuk menghindari command injection (Bug #3)
+  execFile('explorer.exe', [resolvedPath], { windowsHide: false }, (err) => {
+    if (err) {
+      // explorer.exe sering return exit code 1 meski sukses — abaikan
+    }
+    console.log(`[Open] Folder dibuka di Explorer: ${folder.relative_path}`);
+    return res.json({ success: true, message: `Folder "${folder.folder_name}" dibuka di Explorer` });
   });
 }
 
@@ -363,4 +690,10 @@ module.exports = {
   getRecentFiles,
   getFolderTree,
   getScannedFiles,
+  deleteFile,
+  deleteFolder,
+  openFileExternal,
+  openFileWithDialog,
+  openFileWithApp,
+  openFolderInExplorer,
 };

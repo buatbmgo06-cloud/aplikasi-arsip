@@ -99,6 +99,13 @@ async function processNewScan(absolutePath, archiveDir) {
     return { success: false, reason: 'File sudah tidak ada' };
   }
 
+  // Skip file yang sudah sesuai format Scan_YYYYMMDD_NNN
+  const basename = path.basename(absolutePath, path.extname(absolutePath));
+  const scanPattern = new RegExp(`^${SCAN_PREFIX}_\\d{8}_\\d{3,}$`);
+  if (scanPattern.test(basename)) {
+    return { success: false, reason: 'File sudah berformat scan, skip' };
+  }
+
   const db = getDb();
   const ext = path.extname(absolutePath).toLowerCase().replace('.', '');
 
@@ -120,9 +127,9 @@ async function processNewScan(absolutePath, archiveDir) {
     console.log(`[ScanProcessor] ✅ Renamed: ${path.basename(absolutePath)} → ${newFilename}`);
   } catch (err) {
     console.error(`[ScanProcessor] ❌ Gagal rename: ${err.message}`);
-    // Batalkan counter agar tidak ada nomor yang hilang
-    db.prepare(`UPDATE scan_counter SET counter = counter - 1 WHERE date_key = ?`)
-      .run(new Date().toISOString().slice(0, 10).replace(/-/g, ''));
+    // CATATAN: Counter TIDAK di-rollback karena operasi counter sudah atomic di dalam transaksi.
+    // Jika rename gagal, nomor urut ini dilewati (gap nomor lebih aman dari nomor duplikat
+    // yang bisa terjadi bila rollback counter bertabrakan dengan proses lain).
     return { success: false, reason: err.message };
   }
 

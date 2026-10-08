@@ -91,8 +91,8 @@ function getPreviewType(mimeType) {
 }
 
 // ─── API Calls ───────────────────────────────────────────────────────────────
-async function apiFetch(url) {
-  const response = await fetch(url);
+async function apiFetch(url, options = {}) {
+  const response = await fetch(url, options);
   if (!response.ok) {
     const err = await response.json().catch(() => ({ error: response.statusText }));
     throw new Error(err.error || 'API Error');
@@ -370,29 +370,48 @@ function renderFileGrid() {
 }
 
 function renderFolderCard(folder, isGrid) {
+  const ctxData = `data-ctx-type="folder" data-ctx-id="${folder.id}" data-ctx-name="${escapeAttr(folder.folder_name)}" data-ctx-path="${escapeAttr(folder.relative_path)}"`;
   if (isGrid) {
     return `
-      <div class="file-card folder-card" onclick="browseFolder('${escapeAttr(folder.relative_path)}')">
-        <div class="file-icon-wrap bg-yellow-900/30">
+      <div class="file-card folder-card" ${ctxData} oncontextmenu="showContextMenu(event, this)">
+        <div class="file-icon-wrap bg-yellow-900/30" onclick="browseFolder('${escapeAttr(folder.relative_path)}')">
           <span class="file-icon">📂</span>
         </div>
-        <div class="file-info">
+        <div class="file-info" onclick="browseFolder('${escapeAttr(folder.relative_path)}')">
           <p class="file-name" title="${escapeHtml(folder.folder_name)}">${escapeHtml(folder.folder_name)}</p>
           <p class="file-meta">Folder</p>
+        </div>
+        <div class="file-actions">
+          <button class="action-btn delete-btn" onclick="event.stopPropagation(); deleteItem('folder', ${folder.id}, '${escapeAttr(folder.folder_name)}')" title="Hapus folder">Hapus</button>
         </div>
       </div>
     `;
   }
   return `
-    <div class="file-list-item folder-card" onclick="browseFolder('${escapeAttr(folder.relative_path)}')">
-      <span class="list-icon">📂</span>
-      <div class="list-info">
+    <div class="file-list-item folder-card" ${ctxData} oncontextmenu="showContextMenu(event, this)">
+      <span class="list-icon" onclick="browseFolder('${escapeAttr(folder.relative_path)}')">📂</span>
+      <div class="list-info" onclick="browseFolder('${escapeAttr(folder.relative_path)}')">
         <p class="file-name">${escapeHtml(folder.folder_name)}</p>
         <p class="file-meta-path">${escapeHtml(folder.relative_path)}</p>
       </div>
       <span class="list-type-badge folder-badge">Folder</span>
+      <div class="list-actions">
+        <button class="action-btn-sm delete-btn-sm" onclick="event.stopPropagation(); deleteItem('folder', ${folder.id}, '${escapeAttr(folder.folder_name)}')" title="Hapus folder">Hapus</button>
+      </div>
     </div>
   `;
+}
+
+// ─── Format Tanggal ──────────────────────────────────────────────────────────
+function formatDate(dateStr) {
+  if (!dateStr) return '-';
+  const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des'];
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '-';
+  const day = d.getDate();
+  const month = months[d.getMonth()];
+  const year = d.getFullYear();
+  return `${day} ${month} ${year}`;
 }
 
 function renderFileCard(file, isGrid) {
@@ -408,37 +427,40 @@ function renderFileCard(file, isGrid) {
 
   if (isGrid) {
     return `
-      <div class="file-card" data-id="${file.id}">
+      <div class="file-card" data-id="${file.id}" data-ctx-type="file" data-ctx-id="${file.id}" data-ctx-name="${escapeAttr(file.filename)}" data-ctx-mime="${escapeAttr(file.mime_type)}" oncontextmenu="showContextMenu(event, this)">
         <div class="file-icon-wrap ${iconData.bg}">
           <span class="file-icon">${iconData.icon}</span>
-          ${canPreview ? `<button class="preview-btn" onclick="openPreview(${file.id}, '${escapeAttr(file.filename)}', '${escapeAttr(file.mime_type)}')" title="Preview">👁️</button>` : ''}
         </div>
-        <div class="file-info">
+         <div class="file-info">
           <p class="file-name" title="${escapeHtml(file.filename)}">${escapeHtml(file.filename)}</p>
           <p class="file-meta">${file.file_size_formatted} · .${file.extension || '—'}</p>
+          <p class="file-date">${formatDate(file.indexed_at)}</p>
           ${tagsHtml ? `<div class="file-tags">${tagsHtml}</div>` : ''}
         </div>
         <div class="file-actions">
-          ${canPreview ? `<button class="action-btn" onclick="openPreview(${file.id}, '${escapeAttr(file.filename)}', '${escapeAttr(file.mime_type)}')">👁️ Preview</button>` : ''}
-          <a class="action-btn download-btn" href="/api/files/download/${file.id}" download>⬇️ Unduh</a>
+          ${canPreview ? `<button class="action-btn" onclick="openPreview(${file.id}, '${escapeAttr(file.filename)}', '${escapeAttr(file.mime_type)}')">Preview</button>` : ''}
+          <a class="action-btn download-btn" href="/api/files/download/${file.id}" download>Unduh</a>
+          <button class="action-btn delete-btn" onclick="deleteItem('file', ${file.id}, '${escapeAttr(file.filename)}')" title="Hapus file">Hapus</button>
         </div>
       </div>
     `;
   }
 
   return `
-    <div class="file-list-item" data-id="${file.id}">
+    <div class="file-list-item" data-id="${file.id}" data-ctx-type="file" data-ctx-id="${file.id}" data-ctx-name="${escapeAttr(file.filename)}" data-ctx-mime="${escapeAttr(file.mime_type)}" oncontextmenu="showContextMenu(event, this)">
       <span class="list-icon ${iconData.color}">${iconData.icon}</span>
       <div class="list-info">
         <p class="file-name">${escapeHtml(file.filename)}</p>
         <p class="file-meta-path">${escapeHtml(file.relative_path)}</p>
         ${tagsHtml ? `<div class="file-tags" style="margin-top:3px;">${tagsHtml}</div>` : ''}
       </div>
+      <span class="list-date">${formatDate(file.indexed_at)}</span>
       <span class="list-size">${file.file_size_formatted}</span>
       <span class="list-ext-badge" style="">.${file.extension || '?'}</span>
       <div class="list-actions">
-        ${canPreview ? `<button class="action-btn-sm" onclick="openPreview(${file.id}, '${escapeAttr(file.filename)}', '${escapeAttr(file.mime_type)}')">👁️</button>` : ''}
-        <a class="action-btn-sm" href="/api/files/download/${file.id}" download>⬇️</a>
+        ${canPreview ? `<button class="action-btn-sm" onclick="openPreview(${file.id}, '${escapeAttr(file.filename)}', '${escapeAttr(file.mime_type)}')">Preview</button>` : ''}
+        <a class="action-btn-sm" href="/api/files/download/${file.id}" download>Unduh</a>
+        <button class="action-btn-sm delete-btn-sm" onclick="deleteItem('file', ${file.id}, '${escapeAttr(file.filename)}')" title="Hapus">Hapus</button>
       </div>
     </div>
   `;
@@ -502,6 +524,61 @@ function closePreview() {
   DOM.previewModal.classList.remove('flex');
   DOM.previewContent.innerHTML = '';
   document.body.style.overflow = '';
+}
+
+// ─── Delete ──────────────────────────────────────────────────────────────────
+async function deleteItem(type, id, name) {
+  const typeLabel = type === 'folder' ? 'folder' : 'file';
+  const msg = type === 'folder'
+    ? `Anda yakin ingin menghapus folder "${name}" beserta SELURUH isinya?\n\n⚠️ Tindakan ini tidak dapat dibatalkan!`
+    : `Anda yakin ingin menghapus file "${name}"?\n\n⚠️ Tindakan ini tidak dapat dibatalkan!`;
+
+  if (!confirm(msg)) return;
+
+  const endpoint = type === 'folder'
+    ? `/api/folders/${id}`
+    : `/api/files/${id}`;
+
+  try {
+    const result = await apiFetch(endpoint, { method: 'DELETE' });
+    // Tampilkan notifikasi sukses
+    showNotification(result.message || `${typeLabel} berhasil dihapus`, 'success');
+    // Refresh tampilan
+    if (state.isSearching) {
+      searchFiles(state.searchQuery, state.extFilter, state.searchOffset);
+    } else {
+      browseFolder(state.currentPath);
+    }
+    // Refresh sidebar
+    loadStats();
+    loadFolderTree();
+    loadExtensions();
+  } catch (e) {
+    showNotification('Gagal menghapus: ' + e.message, 'error');
+  }
+}
+
+function showNotification(message, type = 'info') {
+  // Hapus notifikasi sebelumnya jika ada
+  const existing = document.getElementById('appNotification');
+  if (existing) existing.remove();
+
+  const div = document.createElement('div');
+  div.id = 'appNotification';
+  div.className = `app-notification app-notification--${type}`;
+  div.innerHTML = `
+    <span>${escapeHtml(message)}</span>
+    <button onclick="this.parentElement.remove()" style="background:none;border:none;color:inherit;font-size:18px;cursor:pointer;margin-left:12px;">✕</button>
+  `;
+  document.body.appendChild(div);
+
+  // Auto-dismiss setelah 4 detik
+  setTimeout(() => {
+    if (div.parentElement) {
+      div.classList.add('app-notification--hide');
+      setTimeout(() => div.remove(), 300);
+    }
+  }, 4000);
 }
 
 // ─── Filter & View Controls ──────────────────────────────────────────────────
@@ -576,22 +653,22 @@ function handleSearchInput(value) {
 document.addEventListener('DOMContentLoaded', () => {
   // Map DOM elements
   DOM = {
-    searchInput:      document.getElementById('searchInput'),
-    fileArea:         document.getElementById('fileArea'),
-    breadcrumb:       document.getElementById('breadcrumb'),
-    statsContainer:   document.getElementById('statsContainer'),
-    extFilters:       document.getElementById('extFilters'),
-    folderTree:       document.getElementById('folderTree'),
-    previewModal:     document.getElementById('previewModal'),
-    previewTitle:     document.getElementById('previewTitle'),
-    previewContent:   document.getElementById('previewContent'),
+    searchInput: document.getElementById('searchInput'),
+    fileArea: document.getElementById('fileArea'),
+    breadcrumb: document.getElementById('breadcrumb'),
+    statsContainer: document.getElementById('statsContainer'),
+    extFilters: document.getElementById('extFilters'),
+    folderTree: document.getElementById('folderTree'),
+    previewModal: document.getElementById('previewModal'),
+    previewTitle: document.getElementById('previewTitle'),
+    previewContent: document.getElementById('previewContent'),
     previewDownloadBtn: document.getElementById('previewDownloadBtn'),
-    loadingSpinner:   document.getElementById('loadingSpinner'),
-    resultCount:      document.getElementById('resultCount'),
-    btnGrid:          document.getElementById('btnGrid'),
-    btnList:          document.getElementById('btnList'),
-    btnRecent:        document.getElementById('btnRecent'),
-    btnScan:          document.getElementById('btnScan'),
+    loadingSpinner: document.getElementById('loadingSpinner'),
+    resultCount: document.getElementById('resultCount'),
+    btnGrid: document.getElementById('btnGrid'),
+    btnList: document.getElementById('btnList'),
+    btnRecent: document.getElementById('btnRecent'),
+    btnScan: document.getElementById('btnScan'),
   };
 
   // Event listeners
@@ -628,10 +705,229 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Expose functions needed by inline HTML onclick handlers
-window.browseFolder   = browseFolder;
-window.filterByExt    = filterByExt;
-window.openPreview    = openPreview;
-window.closePreview   = closePreview;
-window.setViewMode    = setViewMode;
-window.loadRecentFiles   = loadRecentFiles;
-window.loadScannedFiles  = loadScannedFiles;
+window.browseFolder    = browseFolder;
+window.filterByExt     = filterByExt;
+window.openPreview     = openPreview;
+window.closePreview    = closePreview;
+window.setViewMode     = setViewMode;
+window.loadRecentFiles = loadRecentFiles;
+window.loadScannedFiles = loadScannedFiles;
+window.deleteItem      = deleteItem;
+window.showContextMenu = showContextMenu;
+
+// ─── Context Menu ──────────────────────────────────────────────────────────────
+let ctxMenu = null;
+
+function createContextMenu() {
+  if (ctxMenu) return ctxMenu;
+  const div = document.createElement('div');
+  div.id = 'contextMenu';
+  div.className = 'ctx-menu hidden';
+  document.body.appendChild(div);
+  ctxMenu = div;
+
+  // Tutup menu saat klik di luar
+  document.addEventListener('click', () => hideContextMenu());
+  document.addEventListener('contextmenu', (e) => {
+    if (!e.target.closest('[data-ctx-type]')) hideContextMenu();
+  });
+  document.addEventListener('scroll', () => hideContextMenu(), true);
+  return ctxMenu;
+}
+
+function showContextMenu(e, el) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  const menu = createContextMenu();
+  const type = el.dataset.ctxType;
+  const id   = el.dataset.ctxId;
+  const name = el.dataset.ctxName;
+  const mime = el.dataset.ctxMime || '';
+  const ext  = (el.dataset.ctxExt || name.split('.').pop() || '').toLowerCase();
+  const ctxPath    = el.dataset.ctxPath || '';
+  const previewType = type === 'file' ? getPreviewType(mime) : null;
+
+  let items = '';
+
+  if (type === 'file') {
+    // ── Buka (default)
+    items += `
+      <button class="ctx-item" onclick="ctxAction('open-default', ${id})">
+        <span class="ctx-item-icon">▶️</span> Buka (Aplikasi Default)
+      </button>`;
+
+    // ── Buka Dengan... (submenu hover)
+    const apps = getOpenWithApps(ext, mime);
+    items += `
+      <div class="ctx-submenu-wrap">
+        <button class="ctx-item ctx-item--has-sub">
+          <span><span class="ctx-item-icon">🖥️</span> Buka Dengan...</span>
+        </button>
+        <div class="ctx-submenu">
+          <div class="ctx-submenu-header">Pilih Aplikasi</div>
+          ${apps.map(a => `
+            <button class="ctx-item" onclick="ctxAction('openwithapp', ${id}, null, null, '${a.key}')">
+              <span class="ctx-app-badge ctx-app-badge--${a.color}">${a.icon}</span>
+              ${escapeHtml(a.label)}
+            </button>
+          `).join('')}
+          <div class="ctx-divider"></div>
+          <button class="ctx-item" onclick="ctxAction('openwith-dialog', ${id})">
+            <span class="ctx-app-badge ctx-app-badge--gray">📂</span>
+            Pilih Aplikasi Lain...
+          </button>
+        </div>
+      </div>`;
+
+    items += `<div class="ctx-divider"></div>`;
+
+    // ── Preview
+    if (previewType) {
+      items += `
+        <button class="ctx-item" onclick="ctxAction('preview', ${id}, '${escapeAttr(name)}', '${escapeAttr(mime)}')">
+          <span class="ctx-item-icon">🔍</span> Preview
+        </button>`;
+    }
+
+    // ── Unduh
+    items += `
+      <button class="ctx-item" onclick="ctxAction('download', ${id})">
+        <span class="ctx-item-icon">⬇️</span> Unduh
+      </button>`;
+
+    items += `<div class="ctx-divider"></div>`;
+
+    // ── Hapus
+    items += `
+      <button class="ctx-item ctx-item--danger" onclick="ctxAction('delete-file', ${id}, '${escapeAttr(name)}')">
+        <span class="ctx-item-icon">🗑️</span> Hapus
+      </button>`;
+
+  } else if (type === 'folder') {
+    items += `
+      <button class="ctx-item" onclick="ctxAction('browse', 0, '${escapeAttr(ctxPath)}')">
+        <span class="ctx-item-icon">📂</span> Buka Folder
+      </button>
+      <button class="ctx-item" onclick="ctxAction('explorer', ${id})">
+        <span class="ctx-item-icon">🗂️</span> Buka di Explorer
+      </button>
+      <div class="ctx-divider"></div>
+      <button class="ctx-item ctx-item--danger" onclick="ctxAction('delete-folder', ${id}, '${escapeAttr(name)}')">
+        <span class="ctx-item-icon">🗑️</span> Hapus
+      </button>`;
+  }
+
+  menu.innerHTML = items;
+  menu.classList.remove('hidden');
+
+  // Posisikan menu agar tidak keluar layar
+  const menuW = 225;
+  const menuH = menu.offsetHeight || 200;
+  let x = e.clientX;
+  let y = e.clientY;
+  if (x + menuW > window.innerWidth)  x = window.innerWidth  - menuW - 8;
+  if (y + menuH > window.innerHeight) y = window.innerHeight - menuH - 8;
+  menu.style.left = x + 'px';
+  menu.style.top  = y + 'px';
+
+  // Cek apakah submenu keluar layar kanan → tampilkan ke kiri
+  requestAnimationFrame(() => {
+    const sub = menu.querySelector('.ctx-submenu');
+    if (sub) {
+      const rect = sub.getBoundingClientRect();
+      if (rect.right > window.innerWidth - 8) sub.classList.add('ctx-submenu--left');
+    }
+  });
+}
+
+function hideContextMenu() {
+  if (ctxMenu) ctxMenu.classList.add('hidden');
+}
+
+// ─── getOpenWithApps: Rekomendasi aplikasi berdasarkan ekstensi ──────────────
+function getOpenWithApps(ext, mime) {
+  const isText   = ['txt','csv','log','json','xml','html','css','js','md','ini','cfg'].includes(ext);
+  const isImage  = mime?.startsWith('image/');
+  const isDoc    = ['doc','docx','odt','rtf'].includes(ext);
+  const isSheet  = ['xls','xlsx','ods','csv'].includes(ext);
+  const isPpt    = ['ppt','pptx','odp'].includes(ext);
+
+  const apps = [];
+
+  if (isDoc || isPpt || isSheet) {
+    apps.push({ key: 'wordpad', icon: '📝', label: 'WordPad', color: 'blue' });
+  }
+  if (isText || isDoc) {
+    apps.push({ key: 'notepad', icon: '🗒️', label: 'Notepad', color: 'gray' });
+  }
+  if (isImage) {
+    apps.push({ key: 'mspaint', icon: '🎨', label: 'Paint', color: 'orange' });
+    apps.push({ key: 'photos',  icon: '🖼️', label: 'Foto Windows', color: 'purple' });
+  }
+  if (!isImage && !isText) {
+    apps.push({ key: 'notepad', icon: '🗒️', label: 'Notepad', color: 'gray' });
+  }
+
+  // Selalu tampilkan di Explorer
+  apps.push({ key: 'explorer', icon: '📁', label: 'Windows Explorer', color: 'green' });
+
+  return apps;
+}
+
+async function ctxAction(action, id, nameOrPath, mime, appKey) {
+  hideContextMenu();
+
+  switch (action) {
+    case 'preview':
+      openPreview(id, nameOrPath, mime);
+      break;
+    case 'download':
+      window.location.href = `/api/files/download/${id}`;
+      break;
+    case 'open-default':
+    case 'open':
+      try {
+        const r = await apiFetch(`/api/files/open/${id}`, { method: 'POST' });
+        showNotification(r.message || 'File dibuka', 'success');
+      } catch (e) {
+        showNotification('Gagal membuka file: ' + e.message, 'error');
+      }
+      break;
+    case 'openwith-dialog':
+      try {
+        const r = await apiFetch(`/api/files/openwith/${id}`, { method: 'POST' });
+        showNotification(r.message || 'Dialog dibuka', 'success');
+      } catch (e) {
+        showNotification('Gagal membuka dialog: ' + e.message, 'error');
+      }
+      break;
+    case 'openwithapp':
+      try {
+        const r = await apiFetch(`/api/files/openwithapp/${id}?app=${encodeURIComponent(appKey)}`, { method: 'POST' });
+        showNotification(r.message || 'File dibuka', 'success');
+      } catch (e) {
+        showNotification('Gagal membuka file: ' + e.message, 'error');
+      }
+      break;
+    case 'explorer':
+      try {
+        const r = await apiFetch(`/api/folders/open/${id}`, { method: 'POST' });
+        showNotification(r.message || 'Folder dibuka', 'success');
+      } catch (e) {
+        showNotification('Gagal membuka folder: ' + e.message, 'error');
+      }
+      break;
+    case 'browse':
+      browseFolder(nameOrPath);
+      break;
+    case 'delete-file':
+      deleteItem('file', id, nameOrPath);
+      break;
+    case 'delete-folder':
+      deleteItem('folder', id, nameOrPath);
+      break;
+  }
+}
+
+window.ctxAction = ctxAction;

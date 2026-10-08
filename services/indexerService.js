@@ -3,7 +3,7 @@
 const fs = require('fs/promises');
 const path = require('path');
 const mime = require('mime-types');
-const { getDb } = require('../config/database');
+const { getDb, rebuildFts } = require('../config/database');
 
 // Ukuran batch untuk bulk insert agar tidak OOM pada folder besar
 const BATCH_SIZE = 500;
@@ -133,6 +133,11 @@ async function initialScan(archiveDir, onProgress) {
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
   console.log(`[Indexer] ✅ Selesai! ${totalFiles} file & ${totalFolders} folder diindeks dalam ${elapsed}s`);
 
+  // Rebuild FTS5 index setelah scan selesai.
+  // INSERT...ON CONFLICT DO UPDATE tidak memicu trigger, jadi kita rebuild manual.
+  rebuildFts();
+  console.log('[Indexer] 🔍 FTS index di-rebuild.');
+
   return { totalFiles, totalFolders };
 }
 
@@ -179,6 +184,24 @@ async function upsertSingleFile(absolutePath, archiveDir) {
     mime_type: mimeType,
     mtime: stat.mtime.toISOString(),
   });
+
+  // Update FTS manual untuk UPSERT (INSERT...ON CONFLICT tidak trigger AFTER UPDATE)
+  const record = db.prepare('SELECT id FROM files WHERE relative_path = ?').get(relativePath);
+  if (record) {
+    // Hapus entry FTS lama jika ada, lalu insert ulang
+    try {
+      db.prepare(`
+        INSERT INTO files_fts(files_fts, rowid, filename, relative_path, extension)
+        VALUES ('delete', ?, ?, ?, ?)
+      `).run(record.id, filename, relativePath, ext);
+      db.prepare(`
+        INSERT INTO files_fts(rowid, filename, relative_path, extension)
+        VALUES (?, ?, ?, ?)
+      `).run(record.id, filename, relativePath, ext);
+    } catch {
+      // Jika gagal (misal: rowid tidak ada di FTS), abaikan — trigger INSERT sudah menangani file baru
+    }
+  }
 }
 
 /**
