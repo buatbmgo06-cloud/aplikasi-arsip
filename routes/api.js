@@ -17,9 +17,29 @@ const {
   openFileWithDialog,
   openFileWithApp,
   openFolderInExplorer,
+  // New features
+  renameFile,
+  renameFolder,
+  uploadFiles,
+  bulkDeleteFiles,
+  // Tag
+  getFileTags,
+  updateFileTags,
+  // Keranjang (soft delete)
+  getTrash,
+  restoreFile,
+  restoreFolder,
+  purgeFile,
+  purgeFolder,
 } = require('../controllers/archiveController');
 
-const { searchFiles, getExtensions } = require('../controllers/searchController');
+const { searchFiles, getExtensions, listTags } = require('../controllers/searchController');
+const { addClient } = require('../services/eventsService');
+
+// ─── Live Updates (SSE) ──────────────────────────────────────────────────────
+// GET /api/events — stream Server-Sent Events: dikirim event "archive-change"
+// setiap watcher mendeteksi perubahan di folder arsip (dengan debounce).
+router.get('/events', (req, res) => addClient(req, res));
 
 // ─── Browse & Navigation ────────────────────────────────────────────────────
 // GET /api/files/browse?path=subfolder/path
@@ -49,15 +69,56 @@ router.get('/folder-tree', getFolderTree);
 // GET /api/extensions
 router.get('/extensions', getExtensions);
 
+// GET /api/tags — daftar semua tag + jumlah file
+router.get('/tags', listTags);
+
+// ─── Tag ─────────────────────────────────────────────────────────────────────
+// GET /api/files/:id/tags — tag milik satu file
+router.get('/files/:id/tags', getFileTags);
+
+// PUT /api/files/:id/tags  body: { tags: "a, b, c" } — ganti seluruh tag file
+router.put('/files/:id/tags', updateFileTags);
+
+// ─── Keranjang (Soft Delete) ─────────────────────────────────────────────────
+// GET /api/trash?limit=100&offset=0 — daftar item di keranjang
+router.get('/trash', getTrash);
+
+// POST /api/trash/restore/:id — pulihkan file
+router.post('/trash/restore/:id', restoreFile);
+
+// POST /api/trash/restore-folder/:id — pulihkan folder beserta isinya
+router.post('/trash/restore-folder/:id', restoreFolder);
+
+// DELETE /api/trash/files/:id — hapus permanen file (fisik + database)
+router.delete('/trash/files/:id', purgeFile);
+
+// DELETE /api/trash/folders/:id — hapus permanen folder (fisik + database)
+router.delete('/trash/folders/:id', purgeFolder);
+
 // ─── Scan ────────────────────────────────────────────────────────────────────
 // GET /api/scan/recent?limit=20  — file hasil scan terbaru
 router.get('/scan/recent', getScannedFiles);
 
+// ─── Rename ──────────────────────────────────────────────────────────────────
+// PATCH /api/files/:id/rename  body: { newName }
+router.patch('/files/:id/rename', renameFile);
+
+// PATCH /api/folders/:id/rename  body: { newName }
+router.patch('/folders/:id/rename', renameFolder);
+
+// ─── Upload ──────────────────────────────────────────────────────────────────
+// POST /api/files/upload?path=subfolder — multipart/form-data, field: "files"
+router.post('/files/upload', uploadFiles);
+
 // ─── Delete ──────────────────────────────────────────────────────────────────
-// DELETE /api/files/:id  — hapus file (fisik + database)
+// DELETE /api/files/bulk  body: { ids: [1, 2, 3] }
+// CATATAN: harus terdaftar SEBELUM router '/files/:id' agar tidak tertangkap param :id
+router.delete('/files/bulk', bulkDeleteFiles);
+
+// DELETE /api/files/:id  — hapus file (soft-delete, masuk keranjang)
 router.delete('/files/:id', deleteFile);
 
-// DELETE /api/folders/:id  — hapus folder beserta isinya (fisik + database)
+// DELETE /api/folders/:id  — hapus folder beserta isinya (soft-delete, masuk keranjang)
 router.delete('/folders/:id', deleteFolder);
 
 // ─── Open External ──────────────────────────────────────────────────────────

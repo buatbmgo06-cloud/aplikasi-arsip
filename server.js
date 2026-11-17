@@ -2,21 +2,21 @@
 
 require('dotenv').config();
 
-const express  = require('express');
-const path     = require('path');
-const os       = require('os');
-const fs       = require('fs');
+const express = require('express');
+const path = require('path');
+const os = require('os');
+const fs = require('fs');
 const { getDb, closeDb } = require('./config/database');
-const { initialScan }    = require('./services/indexerService');
+const { initialScan } = require('./services/indexerService');
 const { startWatcher, stopWatcher } = require('./services/watcherService');
 const apiRouter = require('./routes/api');
 
 // ─── Konfigurasi ─────────────────────────────────────────────────────────────
-const PORT        = parseInt(process.env.PORT || '3000', 10);
+const PORT = parseInt(process.env.PORT || '3000', 10);
 const ARCHIVE_DIR = process.env.ARCHIVE_DIR_PATH
   ? path.resolve(process.env.ARCHIVE_DIR_PATH)
   : null;
-const APP_NAME    = process.env.APP_NAME || 'Local Archive System';
+const APP_NAME = process.env.APP_NAME || 'Local Archive System';
 
 // ─── Validasi ARCHIVE_DIR ────────────────────────────────────────────────────
 if (!ARCHIVE_DIR) {
@@ -46,7 +46,8 @@ app.set('views', path.join(__dirname, 'views'));
 
 // Static files
 app.use('/css', express.static(path.join(__dirname, 'public', 'css')));
-app.use('/js',  express.static(path.join(__dirname, 'public', 'js')));
+app.use('/js', express.static(path.join(__dirname, 'public', 'js')));
+app.use('/images', express.static(path.join(__dirname, 'public', 'images')));
 
 // Parse JSON & URL-encoded body
 app.use(express.json());
@@ -164,7 +165,7 @@ async function startup() {
   }
 
   process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT',  () => shutdown('SIGINT'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 
   // Handle uncaught exceptions agar server tidak crash tiba-tiba
   process.on('uncaughtException', (err) => {

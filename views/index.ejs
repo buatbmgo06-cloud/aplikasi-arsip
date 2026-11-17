@@ -1,10 +1,14 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Aplikasi manajemen arsip dokumen lokal berbasis Node.js — cepat, aman, dan offline-first." />
-  <title><%= appName %> — Local Archive System</title>
+  <meta name="description"
+    content="Aplikasi manajemen arsip dokumen lokal berbasis Node.js — cepat, aman, dan offline-first." />
+  <title>
+    <%= appName %> — Local Archive System
+  </title>
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -13,138 +17,307 @@
   <!-- Custom CSS -->
   <link rel="stylesheet" href="/css/custom.css" />
 </head>
+
 <body>
 
-<div class="app-layout">
+  <div class="app-layout">
 
-  <!-- ══════════════════ HEADER ══════════════════ -->
-  <header class="app-header">
-    <a class="app-logo" href="/" title="Kembali ke Home">
-      <div class="app-logo-icon">🗄️</div>
-      <span class="app-logo-text"><%= appName %></span>
-    </a>
-
-    <!-- Search Bar -->
-    <div class="search-wrapper">
-      <span class="search-icon">🔍</span>
-      <input
-        type="search"
-        id="searchInput"
-        class="search-input"
-        placeholder="Cari file atau folder... (ketik untuk memulai)"
-        autocomplete="off"
-        spellcheck="false"
-        aria-label="Cari file"
-      />
-    </div>
-
-    <!-- Header Actions -->
-    <div class="header-actions">
-      <button id="btnScan" class="header-btn header-btn--scan" title="Lihat hasil scan terbaru">
-        Scan Terbaru
-      </button>
-      <button id="btnRecent" class="header-btn" title="Lihat file terbaru">
-        Terbaru
-      </button>
-      <a href="/api/stats" target="_blank" class="header-btn" title="Lihat statistik JSON">
-        Stats
+    <!-- ══════════════════ HEADER ══════════════════ -->
+    <header class="app-header">
+      <a class="app-logo" href="/" title="Kembali ke Home">
+        <div class="app-logo-icon">🗄️</div>
+        <span class="app-logo-text">
+          <%= appName %>
+        </span>
       </a>
-    </div>
-  </header>
 
-  <!-- ══════════════════ SIDEBAR ══════════════════ -->
-  <aside class="app-sidebar" aria-label="Navigasi sidebar">
-
-    <!-- Stats Cards -->
-    <div class="sidebar-section">
-      <p class="sidebar-section-title">Statistik Arsip</p>
-      <div id="statsContainer">
-        <!-- Diisi oleh app.js -->
-        <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-value">...</div><div class="stat-label">Memuat</div></div>
-        <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-value">...</div><div class="stat-label">Memuat</div></div>
-        <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-value">...</div><div class="stat-label">Memuat</div></div>
-        <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-value">...</div><div class="stat-label">Memuat</div></div>
-      </div>
-    </div>
-
-    <!-- Filter Ekstensi -->
-    <div class="sidebar-section">
-      <p class="sidebar-section-title">Filter Tipe File</p>
-      <div id="extFilters">
-        <!-- Diisi oleh app.js -->
-      </div>
-    </div>
-
-    <!-- Folder Tree -->
-    <div class="sidebar-section" style="flex:1; overflow:hidden; display:flex; flex-direction:column;">
-      <p class="sidebar-section-title">Navigasi Folder</p>
-      <div id="folderTree" style="overflow-y:auto; flex:1;">
-        <!-- Diisi oleh app.js -->
-      </div>
-    </div>
-
-  </aside>
-
-  <!-- ══════════════════ MAIN CONTENT ══════════════════ -->
-  <main class="app-main" id="mainContent" aria-label="Area konten utama">
-
-    <!-- Toolbar: Breadcrumb + View Toggle -->
-    <div class="main-toolbar">
-      <nav class="breadcrumb-wrap" id="breadcrumb" aria-label="Navigasi breadcrumb">
-        <span class="breadcrumb-current">Home</span>
-      </nav>
-
-      <span class="result-count" id="resultCount"></span>
-
-      <!-- Loading spinner (inline dengan toolbar) -->
-      <div id="loadingSpinner" class="hidden" style="margin-left:4px;">
-        <div class="spinner" aria-label="Memuat..."></div>
+      <!-- Search Bar -->
+      <div class="search-wrapper">
+        <img src="/images/icon-pencarian.png" class="search-icon-img" alt="Cari" />
+        <input type="search" id="searchInput" class="search-input"
+          placeholder="Cari file atau folder... (ketik untuk memulai)" autocomplete="off" spellcheck="false"
+          aria-label="Cari file" />
       </div>
 
-      <!-- Grid / List Toggle -->
-      <div class="view-toggle" role="group" aria-label="Pilih tampilan">
-        <button id="btnGrid" class="view-btn active" title="Tampilan Grid" aria-pressed="true">⊞</button>
-        <button id="btnList" class="view-btn" title="Tampilan List" aria-pressed="false">☰</button>
+      <!-- Header Actions -->
+      <div class="header-actions">
+        <button id="btnRecent" class="header-btn" title="Lihat file terbaru">
+          Terbaru
+        </button>
+        <button id="btnTrash" class="header-btn header-btn--trash" title="Keranjang arsip — item yang dihapus bisa dipulihkan">
+          🗑️ Keranjang
+        </button>
+        <a href="/api/stats" target="_blank" class="header-btn" title="Lihat statistik JSON">
+          Stats
+        </a>
       </div>
-    </div>
+    </header>
 
-    <!-- File & Folder Display Area -->
-    <div class="file-content-area">
-      <div id="fileArea" class="file-grid" aria-label="Daftar file dan folder">
-        <!-- Skeleton loading -->
-        <div class="empty-state">
-          <div class="spinner" style="width:48px;height:48px;border-width:4px;"></div>
-          <p class="empty-title" style="margin-top:20px;">Memuat arsip...</p>
+    <!-- ══════════════════ SIDEBAR ══════════════════ -->
+    <aside class="app-sidebar" aria-label="Navigasi sidebar">
+
+      <!-- Stats Cards -->
+      <div class="sidebar-section">
+        <p class="sidebar-section-title">Statistik Arsip</p>
+        <div id="statsContainer">
+          <!-- Diisi oleh app.js -->
+          <div class="stat-card">
+            <div class="stat-icon">⏳</div>
+            <div class="stat-value">...</div>
+            <div class="stat-label">Memuat</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">⏳</div>
+            <div class="stat-value">...</div>
+            <div class="stat-label">Memuat</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">⏳</div>
+            <div class="stat-value">...</div>
+            <div class="stat-label">Memuat</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">⏳</div>
+            <div class="stat-value">...</div>
+            <div class="stat-label">Memuat</div>
+          </div>
         </div>
       </div>
-    </div>
 
-  </main>
+      <!-- Filter Ekstensi -->
+      <div class="sidebar-section">
+        <p class="sidebar-section-title">Filter Tipe File</p>
+        <div id="extFilters">
+          <!-- Diisi oleh app.js -->
+        </div>
+      </div>
 
-</div>
+      <!-- Filter Tag -->
+      <div class="sidebar-section">
+        <p class="sidebar-section-title">Filter Tag</p>
+        <div id="tagFilters">
+          <!-- Diisi oleh app.js -->
+        </div>
+      </div>
 
-<!-- ══════════════════ PREVIEW MODAL ══════════════════ -->
-<div id="previewModal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
-  <div class="modal-container">
-    <div class="modal-header">
-      <h2 class="modal-title" id="previewTitle">Preview File</h2>
-      <div class="modal-actions">
-        <a id="previewDownloadBtn" href="#" download class="modal-download-link" aria-label="Download file">
-          ⬇️ Unduh
-        </a>
-        <button class="modal-close-btn" onclick="closePreview()" aria-label="Tutup preview">
-          ✕ Tutup
+      <!-- Filter Lanjutan -->
+      <div class="sidebar-section">
+        <p class="sidebar-section-title">Filter Lanjutan</p>
+        <div id="advFiltersPanel" class="adv-panel">
+
+          <div class="adv-field">
+            <label class="adv-label" for="advType">Tipe File</label>
+            <select id="advType" class="adv-select">
+              <option value="">Semua tipe</option>
+              <option value="document">Dokumen</option>
+              <option value="image">Gambar</option>
+              <option value="video">Video</option>
+              <option value="audio">Audio</option>
+              <option value="archive">Arsip (zip/rar)</option>
+              <option value="code">Kode / Teks</option>
+            </select>
+          </div>
+
+          <label class="adv-checkbox">
+            <input type="checkbox" id="advFolderScope" />
+            <span>Hanya di folder saat ini</span>
+          </label>
+
+          <div class="adv-row">
+            <div class="adv-field">
+              <label class="adv-label" for="advDateFrom">Dari Tanggal</label>
+              <input type="date" id="advDateFrom" class="adv-input" />
+            </div>
+            <div class="adv-field">
+              <label class="adv-label" for="advDateTo">Sampai</label>
+              <input type="date" id="advDateTo" class="adv-input" />
+            </div>
+          </div>
+
+          <div class="adv-row">
+            <div class="adv-field">
+              <label class="adv-label" for="advMinSize">Ukuran Min</label>
+              <input type="number" id="advMinSize" class="adv-input" min="0" step="any" placeholder="0" />
+            </div>
+            <div class="adv-field">
+              <label class="adv-label" for="advMaxSize">Maks</label>
+              <input type="number" id="advMaxSize" class="adv-input" min="0" step="any" placeholder="&infin;" />
+            </div>
+            <div class="adv-field adv-field--unit">
+              <label class="adv-label" for="advSizeUnit">Satuan</label>
+              <select id="advSizeUnit" class="adv-select">
+                <option value="KB">KB</option>
+                <option value="MB" selected>MB</option>
+                <option value="GB">GB</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="adv-row">
+            <div class="adv-field">
+              <label class="adv-label" for="advSort">Urutkan</label>
+              <select id="advSort" class="adv-select">
+                <option value="">Default</option>
+                <option value="relevance">Relevansi</option>
+                <option value="name">Nama</option>
+                <option value="date">Tanggal</option>
+                <option value="size">Ukuran</option>
+              </select>
+            </div>
+            <div class="adv-field">
+              <label class="adv-label" for="advOrder">Arah</label>
+              <select id="advOrder" class="adv-select">
+                <option value="desc">Turun</option>
+                <option value="asc">Naik</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="adv-actions">
+            <button id="btnApplyFilters" class="adv-btn adv-btn--primary" title="Terapkan filter">
+              Terapkan
+            </button>
+            <button id="btnResetFilters" class="adv-btn adv-btn--ghost" title="Hapus semua filter">
+              Reset
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Folder Tree -->
+      <div class="sidebar-section" style="flex:1; overflow:hidden; display:flex; flex-direction:column;">
+        <p class="sidebar-section-title">Navigasi Folder</p>
+        <div id="folderTree" style="overflow-y:auto; flex:1;">
+          <!-- Diisi oleh app.js -->
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- ══════════════════ MAIN CONTENT ══════════════════ -->
+    <main class="app-main" id="mainContent" aria-label="Area konten utama">
+
+      <!-- Toolbar: Breadcrumb + View Toggle -->
+      <div class="main-toolbar">
+        <nav class="breadcrumb-wrap" id="breadcrumb" aria-label="Navigasi breadcrumb">
+          <button class="breadcrumb-home" onclick="browseFolder('')" title="Kembali ke tampilan utama">
+            Home
+          </button>
+        </nav>
+
+        <span class="result-count" id="resultCount"></span>
+
+        <!-- Loading spinner (inline dengan toolbar) -->
+        <div id="loadingSpinner" class="hidden" style="margin-left:4px;">
+          <div class="spinner" aria-label="Memuat..."></div>
+        </div>
+
+        <!-- Upload -->
+        <input type="file" id="uploadInput" multiple class="hidden" />
+        <button id="btnUpload" class="toolbar-btn" title="Unggah file ke folder ini (atau seret file ke area daftar)">
+          ⬆️ Upload
         </button>
+
+        <!-- Grid / List Toggle -->
+        <div class="view-toggle" role="group" aria-label="Pilih tampilan">
+          <button id="btnGrid" class="view-btn active" title="Tampilan Grid" aria-pressed="true">⊞</button>
+          <button id="btnList" class="view-btn" title="Tampilan List" aria-pressed="false">☰</button>
+        </div>
+      </div>
+
+      <!-- File & Folder Display Area -->
+      <div class="file-content-area">
+        <div id="fileArea" class="file-grid" aria-label="Daftar file dan folder">
+          <!-- Skeleton loading -->
+          <div class="empty-state">
+            <div class="spinner" style="width:48px;height:48px;border-width:4px;"></div>
+            <p class="empty-title" style="margin-top:20px;">Memuat arsip...</p>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- ══════════════════ PREVIEW MODAL ══════════════════ -->
+  <div id="previewModal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h2 class="modal-title" id="previewTitle">Preview File</h2>
+        <div class="modal-actions">
+          <a id="previewDownloadBtn" href="#" download class="modal-download-link" aria-label="Download file">
+            ⬇️ Unduh
+          </a>
+          <button class="modal-close-btn" onclick="closePreview()" aria-label="Tutup preview">
+            ✕ Tutup
+          </button>
+        </div>
+      </div>
+      <div class="modal-body" id="previewContent" aria-live="polite">
+        <!-- Konten preview diisi oleh app.js -->
       </div>
     </div>
-    <div class="modal-body" id="previewContent" aria-live="polite">
-      <!-- Konten preview diisi oleh app.js -->
+  </div>
+
+  <!-- ══════════════════ TAG MODAL ══════════════════ -->
+  <div id="tagModal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="tagTitle">
+    <div class="modal-container modal-container--tag">
+      <div class="modal-header">
+        <h2 class="modal-title" id="tagTitle">Atur Tag</h2>
+        <div class="modal-actions">
+          <button class="modal-close-btn" onclick="closeTagModal()" aria-label="Tutup modal tag">
+            ✕ Tutup
+          </button>
+        </div>
+      </div>
+      <div class="modal-body modal-body--tag">
+        <p class="tag-file-name" id="tagFileName"></p>
+        <div id="tagChips" class="tag-chips">
+          <!-- Chip tag milik file, diisi oleh app.js -->
+        </div>
+        <div class="tag-input-row">
+          <input type="text" id="tagInput" class="tag-input" placeholder="Ketik tag baru (bisa beberapa, pisah dengan koma)..." autocomplete="off" />
+          <button id="btnAddTag" class="tag-add-btn" type="button">Tambah</button>
+        </div>
+        <div class="tag-suggestions">
+          <p class="tag-suggestions-title">Tag yang sudah ada (klik untuk menambah):</p>
+          <div id="tagSuggestions" class="tag-suggestion-list">
+            <!-- Diisi oleh app.js -->
+          </div>
+        </div>
+      </div>
+      <div class="tag-modal-footer">
+        <button id="btnSaveTags" class="tag-save-btn" type="button">💾 Simpan Tag</button>
+      </div>
     </div>
   </div>
-</div>
 
-<!-- ══════════════════ INFO BAR (bottom) ══════════════════ -->
-<div style="
+  <!-- ══════════════════ RENAME MODAL ══════════════════ -->
+  <div id="renameModal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="renameTitle">
+    <div class="modal-container modal-container--rename">
+      <div class="modal-header">
+        <h2 class="modal-title" id="renameTitle">Rename</h2>
+        <div class="modal-actions">
+          <button class="modal-close-btn" onclick="closeRenameModal()" aria-label="Tutup modal rename">
+            ✕ Tutup
+          </button>
+        </div>
+      </div>
+      <div class="modal-body modal-body--rename">
+        <label class="adv-label" for="renameInput">Nama baru</label>
+        <input type="text" id="renameInput" class="tag-input" autocomplete="off" spellcheck="false" />
+        <p class="rename-error hidden" id="renameError"></p>
+      </div>
+      <div class="tag-modal-footer">
+        <button id="btnSaveRename" class="tag-save-btn" type="button">💾 Simpan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════ INFO BAR (bottom) ══════════════════ -->
+  <div style="
   position: fixed; bottom: 0; right: 0; left: 280px;
   display: flex; align-items: center; justify-content: flex-end;
   padding: 4px 20px;
@@ -155,15 +328,20 @@
   z-index: 50;
   gap: 12px;
 ">
-  <span>🔒 Data 100% Lokal — Tidak ada koneksi cloud</span>
-  <span>•</span>
-  <span>Server: <strong style="color:#3b82f6;"><%= serverUrl %></strong></span>
-  <span>•</span>
-  <span>Folder: <strong style="color:#8b949e;"><%= archiveDir %></strong></span>
-</div>
+    <span>🔒 Data 100% Lokal — Tidak ada koneksi cloud</span>
+    <span>•</span>
+    <span>Server: <strong style="color:#3b82f6;">
+        <%= serverUrl %>
+      </strong></span>
+    <span>•</span>
+    <span>Folder: <strong style="color:#8b949e;">
+        <%= archiveDir %>
+      </strong></span>
+  </div>
 
-<!-- ══════════════════ SCRIPTS ══════════════════ -->
-<script src="/js/app.js"></script>
+  <!-- ══════════════════ SCRIPTS ══════════════════ -->
+  <script src="/js/app.js"></script>
 
 </body>
+
 </html>

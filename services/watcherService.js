@@ -9,6 +9,7 @@ const {
   softDeleteFolder,
 } = require('./indexerService');
 const { isInScanFolder, processNewScan } = require('./scanProcessorService');
+const { notifyChange } = require('./eventsService');
 
 let watcher = null;
 
@@ -59,17 +60,19 @@ function startWatcher(archiveDir) {
       processNewScan(filePath, archiveDir).then((result) => {
         if (!result.success) {
           // Jika gagal diproses oleh scan processor, indeks dengan nama asli
-          upsertSingleFile(filePath, archiveDir).catch((err) => {
+          upsertSingleFile(filePath, archiveDir).then(() => notifyChange()).catch((err) => {
             console.error(`[Watcher] Error indeks fallback: ${err.message}`);
           });
+        } else {
+          notifyChange();
         }
       }).catch((err) => {
         console.error(`[Watcher] Error scan processor: ${err.message}`);
-        upsertSingleFile(filePath, archiveDir).catch(() => {});
+        upsertSingleFile(filePath, archiveDir).then(() => notifyChange()).catch(() => {});
       });
     } else {
       // File biasa di luar folder Scan
-      upsertSingleFile(filePath, archiveDir).catch((err) => {
+      upsertSingleFile(filePath, archiveDir).then(() => notifyChange()).catch((err) => {
         console.error(`[Watcher] Error saat menambah file: ${err.message}`);
       });
     }
@@ -78,7 +81,7 @@ function startWatcher(archiveDir) {
   // ─── Event: File diubah (modified) ──────────────────────────────────────────
   watcher.on('change', (filePath) => {
     console.log(`[Watcher] ✏️  File berubah: ${path.relative(archiveDir, filePath)}`);
-    upsertSingleFile(filePath, archiveDir).catch((err) => {
+    upsertSingleFile(filePath, archiveDir).then(() => notifyChange()).catch((err) => {
       console.error(`[Watcher] Error saat update file: ${err.message}`);
     });
   });
@@ -87,6 +90,7 @@ function startWatcher(archiveDir) {
   watcher.on('unlink', (filePath) => {
     console.log(`[Watcher] 🗑️  File dihapus: ${path.relative(archiveDir, filePath)}`);
     softDeleteFile(filePath, archiveDir);
+    notifyChange();
   });
 
   // ─── Event: Folder baru ditambahkan ─────────────────────────────────────────
@@ -94,12 +98,14 @@ function startWatcher(archiveDir) {
     if (dirPath === archiveDir) return; // Skip root folder
     console.log(`[Watcher] 📁 Folder baru: ${path.relative(archiveDir, dirPath)}`);
     upsertSingleFolder(dirPath, archiveDir);
+    notifyChange();
   });
 
   // ─── Event: Folder dihapus ──────────────────────────────────────────────────
   watcher.on('unlinkDir', (dirPath) => {
     console.log(`[Watcher] 🗑️  Folder dihapus: ${path.relative(archiveDir, dirPath)}`);
     softDeleteFolder(dirPath, archiveDir);
+    notifyChange();
   });
 
   // ─── Event: Error ───────────────────────────────────────────────────────────

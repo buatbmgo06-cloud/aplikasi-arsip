@@ -6,6 +6,13 @@ Aplikasi manajemen arsip dokumen berbasis **Full Local Storage** menggunakan Nod
 
 - 📁 **Auto-Sync** — Memindai folder arsip saat startup & sinkronisasi realtime via chokidar
 - 🔍 **Full-Text Search** — Pencarian cepat menggunakan SQLite FTS5
+- 🎛️ **Filter Lanjutan** — Filter tipe file, folder, rentang tanggal, ukuran, tag, dan sorting hasil
+- 📑 **Muat Lebih Banyak** — Pagination hasil pencarian tanpa reload halaman
+- 🏷️ **Manajemen Tag** — Tambah/hapus tag per file lewat menu klik-kanan, dengan saran tag
+- 🔖 **Filter Tag** — Daftar tag di sidebar, klik untuk memfilter hasil pencarian
+- ⬆️ **Upload & Rename** — Unggah file (tombol atau drag-and-drop) dan rename file/folder dari UI
+- 🗑️ **Keranjang Arsip** — Hapus = soft delete; pulihkan atau hapus permanen lewat keranjang
+- 🔄 **Auto-Refresh Realtime** — File yang dicopy/dihapus langsung dari Explorer otomatis muncul/hilang di browser via Server-Sent Events
 - 📂 **Explorer Navigation** — Navigasi folder dengan breadcrumb & folder tree
 - 👁️ **File Preview** — Preview PDF, gambar, video, audio langsung di browser
 - ⬇️ **Download** — Unduh file aman via browser
@@ -120,10 +127,38 @@ local-archive-app/
 | GET | `/api/recent?limit=20` | File terbaru |
 | GET | `/api/folder-tree` | Tree folder |
 | GET | `/api/extensions` | Daftar ekstensi |
+| GET | `/api/tags` | Daftar semua tag + jumlah file |
+| GET | `/api/files/:id/tags` | Tag milik satu file |
+| PUT | `/api/files/:id/tags` | Ganti tag satu file (`{ "tags": "a, b" }`) |
+| POST | `/api/files/upload?path=sub` | Upload file (multipart, field `files`) |
+| PATCH | `/api/files/:id/rename` | Rename file (`{ "newName": "..." }`) |
+| PATCH | `/api/folders/:id/rename` | Rename folder |
+| GET | `/api/trash` | Item di keranjang (soft delete) |
+| POST | `/api/trash/restore/:id` | Pulihkan file dari keranjang |
+| POST | `/api/trash/restore-folder/:id` | Pulihkan folder beserta isinya |
+| DELETE | `/api/trash/files/:id` | Hapus permanen file |
+| DELETE | `/api/trash/folders/:id` | Hapus permanen folder |
 | GET | `/api/health` | Health check |
+| GET | `/api/events` | Stream SSE — event `archive-change` saat folder arsip berubah |
+
+### Filter Lanjutan pada `/api/files/search`
+
+Semua parameter opsional dan digabung dengan AND:
+
+| Parameter | Nilai | Keterangan |
+|-----------|-------|------------|
+| `q` | teks | Kata kunci full-text (FTS5, fallback LIKE) |
+| `ext` | `pdf` | Ekstensi file |
+| `type` | `document`, `image`, `video`, `audio`, `archive`, `code` | Kelompok tipe file |
+| `folder` | `subfolder/anak` | Batasi ke folder ini beserta isinya |
+| `from`, `to` | `YYYY-MM-DD` | Rentang tanggal update file |
+| `min_size`, `max_size` | byte | Rentang ukuran file |
+| `tag` | teks | File yang memiliki tag ini |
+| `sort` | `relevance`, `name`, `date`, `size` | Urutan hasil (default: relevansi saat ada `q`, selain itu tanggal) |
+| `order` | `asc`, `desc` | Arah sorting (default: `desc`) |
 
 ## Keamanan
 
 - **Directory Traversal**: Semua path divalidasi dengan `path.resolve()` + `startsWith(ARCHIVE_DIR)`
-- **Soft Delete**: File yang dihapus hanya ditandai `is_deleted=1`, tidak ada penghapusan fisik
+- **Soft Delete**: Hapus file/folder hanya menandai `is_deleted=1` — file fisik tetap ada dan bisa dipulihkan lewat Keranjang; penghapusan fisik hanya terjadi lewat "Hapus Permanen" di keranjang
 - **No Cloud**: Zero koneksi ke internet, data 100% tersimpan lokal

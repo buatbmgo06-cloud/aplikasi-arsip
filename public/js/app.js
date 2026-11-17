@@ -19,11 +19,30 @@ const state = {
   breadcrumb: [{ name: 'Home', path: '' }],
   stats: null,
   extensions: [],
+  tags: [],
+  tagFilter: '',
   folderTree: [],
   previewFile: null,
   debounceTimer: null,
   searchOffset: 0,
   searchTotal: 0,
+  isTrash: false,
+  trashItems: [],
+  tagFileId: null,
+  tagDraft: [],
+  renameTarget: null, // { type: 'file'|'folder', id, name }
+  liveRefreshTimer: null,
+  advFilters: {
+    type: '',
+    folderScope: false,
+    dateFrom: '',
+    dateTo: '',
+    minSize: '',
+    maxSize: '',
+    sizeUnit: 'MB',
+    sort: '',
+    order: 'desc',
+  },
 };
 
 // ─── DOM References ──────────────────────────────────────────────────────────
@@ -131,6 +150,7 @@ async function loadFolderTree() {
 
 async function browseFolder(folderPath) {
   state.isSearching = false;
+  state.isTrash = false;
   state.searchQuery = '';
   DOM.searchInput.value = '';
   state.currentPath = folderPath;
@@ -151,8 +171,9 @@ async function browseFolder(folderPath) {
 }
 
 async function searchFiles(query, ext, offset = 0) {
-  if (!query && !ext) return;
+  if (!query && !ext && !state.tagFilter && !hasAdvancedFilters()) return;
   state.isSearching = true;
+  state.isTrash = false;
   state.searchOffset = offset;
 
   setLoading(true);
@@ -160,14 +181,18 @@ async function searchFiles(query, ext, offset = 0) {
     const params = new URLSearchParams({ limit: 60, offset });
     if (query) params.set('q', query);
     if (ext) params.set('ext', ext);
+    if (state.tagFilter) params.set('tag', state.tagFilter);
+    getAdvancedQueryParams(params);
 
     const data = await apiFetch(`/api/files/search?${params}`);
-    state.currentFiles = data.files || [];
+    const newFiles = data.files || [];
+    // Pagination: offset > 0 berarti memuat halaman berikutnya, hasil ditambahkan
+    state.currentFiles = offset > 0 ? [...state.currentFiles, ...newFiles] : newFiles;
     state.currentFolders = [];
     state.searchTotal = data.total || 0;
 
     if (offset === 0) {
-      state.breadcrumb = [{ name: 'Home', path: '' }, { name: `Hasil pencarian: "${query || ext}"`, path: '' }];
+      state.breadcrumb = [{ name: 'Home', path: '' }, { name: `Hasil pencarian: ${buildSearchLabel(query, ext)}`, path: '' }];
     }
     renderBreadcrumb();
     renderFileGrid();
@@ -180,6 +205,7 @@ async function searchFiles(query, ext, offset = 0) {
 
 async function loadRecentFiles() {
   setLoading(true);
+  state.isTrash = false;
   try {
     const data = await apiFetch('/api/recent?limit=40');
     state.currentFiles = data.files || [];
@@ -190,35 +216,6 @@ async function loadRecentFiles() {
     renderFileGrid();
   } catch (e) {
     showError('Gagal memuat file terbaru: ' + e.message);
-  } finally {
-    setLoading(false);
-  }
-}
-
-async function loadScannedFiles() {
-  setLoading(true);
-  try {
-    const data = await apiFetch('/api/scan/recent?limit=60');
-    state.currentFiles = data.files || [];
-    state.currentFolders = [];
-    state.isSearching = true;
-
-    const todayInfo = data.today
-      ? ` · Hari ini: ${data.today.count} file`
-      : '';
-    state.breadcrumb = [
-      { name: 'Home', path: '' },
-      { name: `📷 Hasil Scan${todayInfo}`, path: '' },
-    ];
-    renderBreadcrumb();
-    renderFileGrid();
-
-    // Update tombol scan dengan info hari ini
-    if (DOM.btnScan && data.today) {
-      DOM.btnScan.title = `Scan hari ini: ${data.today.count} file (${data.today.total_size_formatted})`;
-    }
-  } catch (e) {
-    showError('Gagal memuat file scan: ' + e.message);
   } finally {
     setLoading(false);
   }
@@ -276,6 +273,47 @@ function renderExtensionFilters() {
   `;
 }
 
+async function loadTags() {
+  try {
+    const data = await apiFetch('/api/tags');
+    state.tags = data.tags || [];
+    renderTagFilters();
+  } catch (e) {
+    console.error('Gagal memuat tag:', e);
+  }
+}
+
+function renderTagFilters() {
+  if (!DOM.tagFilters) return;
+  const topTags = state.tags.slice(0, 12);
+  const btns = topTags.map(t => `
+    <button class="ext-filter-btn ${state.tagFilter === t.tag ? 'active' : ''}"
+            onclick="filterByTag('${escapeAttr(t.tag)}')"
+            title="${t.count} file">
+      <span>🏷️</span>
+      <span class="tag-name">${escapeHtml(t.tag)}</span>
+      <span class="ext-count">${t.count}</span>
+    </button>
+  `).join('');
+
+  DOM.tagFilters.innerHTML = `
+    <button class="ext-filter-btn ${!state.tagFilter ? 'active' : ''}" onclick="filterByTag('')">
+      🔖 Semua
+    </button>
+    ${btns}
+  `;
+}
+
+function filterByTag(tag) {
+  state.tagFilter = tag;
+  renderTagFilters();
+  if (state.searchQuery || state.extFilter || tag || hasAdvancedFilters()) {
+    searchFiles(state.searchQuery, state.extFilter, 0);
+  } else {
+    browseFolder(state.currentPath);
+  }
+}
+
 function renderFolderTree(nodes, container, depth) {
   if (!container) return;
   container.innerHTML = '';
@@ -322,6 +360,17 @@ function renderBreadcrumb() {
   if (!DOM.breadcrumb) return;
   DOM.breadcrumb.innerHTML = state.breadcrumb.map((crumb, i) => {
     const isLast = i === state.breadcrumb.length - 1;
+    const isHome = i === 0 && crumb.name === 'Home';
+
+    // Home selalu ditampilkan sebagai tombol agar bisa diklik kembali ke tampilan utama
+    if (isHome) {
+      return `
+        <button class="breadcrumb-home" onclick="browseFolder('')" title="Kembali ke tampilan utama">
+          Home
+        </button>
+      `;
+    }
+
     if (isLast) {
       return `<span class="breadcrumb-current">${escapeHtml(crumb.name)}</span>`;
     }
@@ -342,7 +391,7 @@ function renderFileGrid() {
   if (allItems.length === 0) {
     DOM.fileArea.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon">🔍</div>
+        <img src="/images/icon-pencarian.png" alt="Ikon pencarian" class="empty-icon-img" />
         <p class="empty-title">${state.isSearching ? 'Tidak ada hasil ditemukan' : 'Folder kosong'}</p>
         <p class="empty-subtitle">${state.isSearching ? 'Coba kata kunci lain' : 'Tidak ada file atau subfolder di sini'}</p>
       </div>
@@ -353,12 +402,25 @@ function renderFileGrid() {
   const isGrid = state.viewMode === 'grid';
   DOM.fileArea.className = isGrid ? 'file-grid' : 'file-list';
 
-  DOM.fileArea.innerHTML = allItems.map(item => {
+  let html = allItems.map(item => {
     if (item.type === 'folder') {
       return renderFolderCard(item, isGrid);
     }
     return renderFileCard(item, isGrid);
   }).join('');
+
+  // Pagination hasil pencarian: tombol muat halaman berikutnya
+  if (state.isSearching && state.searchTotal > state.currentFiles.length) {
+    html += `
+      <div class="load-more-wrap">
+        <button class="load-more-btn" onclick="loadMoreResults()">
+          ⬇️ Muat lebih banyak (${(state.searchTotal - state.currentFiles.length).toLocaleString('id-ID')} lagi)
+        </button>
+      </div>
+    `;
+  }
+
+  DOM.fileArea.innerHTML = html;
 
   // Update result count
   if (DOM.resultCount) {
@@ -381,9 +443,7 @@ function renderFolderCard(folder, isGrid) {
           <p class="file-name" title="${escapeHtml(folder.folder_name)}">${escapeHtml(folder.folder_name)}</p>
           <p class="file-meta">Folder</p>
         </div>
-        <div class="file-actions">
-          <button class="action-btn delete-btn" onclick="event.stopPropagation(); deleteItem('folder', ${folder.id}, '${escapeAttr(folder.folder_name)}')" title="Hapus folder">Hapus</button>
-        </div>
+        
       </div>
     `;
   }
@@ -395,9 +455,7 @@ function renderFolderCard(folder, isGrid) {
         <p class="file-meta-path">${escapeHtml(folder.relative_path)}</p>
       </div>
       <span class="list-type-badge folder-badge">Folder</span>
-      <div class="list-actions">
-        <button class="action-btn-sm delete-btn-sm" onclick="event.stopPropagation(); deleteItem('folder', ${folder.id}, '${escapeAttr(folder.folder_name)}')" title="Hapus folder">Hapus</button>
-      </div>
+      
     </div>
   `;
 }
@@ -405,7 +463,7 @@ function renderFolderCard(folder, isGrid) {
 // ─── Format Tanggal ──────────────────────────────────────────────────────────
 function formatDate(dateStr) {
   if (!dateStr) return '-';
-  const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'];
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return '-';
   const day = d.getDate();
@@ -427,7 +485,7 @@ function renderFileCard(file, isGrid) {
 
   if (isGrid) {
     return `
-      <div class="file-card" data-id="${file.id}" data-ctx-type="file" data-ctx-id="${file.id}" data-ctx-name="${escapeAttr(file.filename)}" data-ctx-mime="${escapeAttr(file.mime_type)}" oncontextmenu="showContextMenu(event, this)">
+      <div class="file-card" data-id="${file.id}" data-ctx-type="file" data-ctx-id="${file.id}" data-ctx-name="${escapeAttr(file.filename)}" data-ctx-mime="${escapeAttr(file.mime_type)}" data-ctx-tags="${escapeAttr(tagList.join(', '))}" oncontextmenu="showContextMenu(event, this)">
         <div class="file-icon-wrap ${iconData.bg}">
           <span class="file-icon">${iconData.icon}</span>
         </div>
@@ -440,14 +498,13 @@ function renderFileCard(file, isGrid) {
         <div class="file-actions">
           ${canPreview ? `<button class="action-btn" onclick="openPreview(${file.id}, '${escapeAttr(file.filename)}', '${escapeAttr(file.mime_type)}')">Preview</button>` : ''}
           <a class="action-btn download-btn" href="/api/files/download/${file.id}" download>Unduh</a>
-          <button class="action-btn delete-btn" onclick="deleteItem('file', ${file.id}, '${escapeAttr(file.filename)}')" title="Hapus file">Hapus</button>
         </div>
       </div>
     `;
   }
 
   return `
-    <div class="file-list-item" data-id="${file.id}" data-ctx-type="file" data-ctx-id="${file.id}" data-ctx-name="${escapeAttr(file.filename)}" data-ctx-mime="${escapeAttr(file.mime_type)}" oncontextmenu="showContextMenu(event, this)">
+    <div class="file-list-item" data-id="${file.id}" data-ctx-type="file" data-ctx-id="${file.id}" data-ctx-name="${escapeAttr(file.filename)}" data-ctx-mime="${escapeAttr(file.mime_type)}" data-ctx-tags="${escapeAttr(tagList.join(', '))}" oncontextmenu="showContextMenu(event, this)">
       <span class="list-icon ${iconData.color}">${iconData.icon}</span>
       <div class="list-info">
         <p class="file-name">${escapeHtml(file.filename)}</p>
@@ -460,7 +517,6 @@ function renderFileCard(file, isGrid) {
       <div class="list-actions">
         ${canPreview ? `<button class="action-btn-sm" onclick="openPreview(${file.id}, '${escapeAttr(file.filename)}', '${escapeAttr(file.mime_type)}')">Preview</button>` : ''}
         <a class="action-btn-sm" href="/api/files/download/${file.id}" download>Unduh</a>
-        <button class="action-btn-sm delete-btn-sm" onclick="deleteItem('file', ${file.id}, '${escapeAttr(file.filename)}')" title="Hapus">Hapus</button>
       </div>
     </div>
   `;
@@ -545,7 +601,7 @@ async function deleteItem(type, id, name) {
     showNotification(result.message || `${typeLabel} berhasil dihapus`, 'success');
     // Refresh tampilan
     if (state.isSearching) {
-      searchFiles(state.searchQuery, state.extFilter, state.searchOffset);
+      searchFiles(state.searchQuery, state.extFilter, 0);
     } else {
       browseFolder(state.currentPath);
     }
@@ -581,12 +637,507 @@ function showNotification(message, type = 'info') {
   }, 4000);
 }
 
+// ─── Upload ──────────────────────────────────────────────────────────────────
+function pickUploadFiles() {
+  if (state.isSearching || state.isTrash) {
+    showNotification('Upload hanya bisa dilakukan di tampilan folder', 'info');
+    return;
+  }
+  DOM.uploadInput.value = '';
+  DOM.uploadInput.click();
+}
+
+async function uploadFiles(fileList) {
+  const files = Array.from(fileList || []);
+  if (!files.length) return;
+
+  const formData = new FormData();
+  for (const f of files) formData.append('files', f);
+
+  const progress = showUploadProgress(files.length);
+  try {
+    const result = await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `/api/files/upload?path=${encodeURIComponent(state.currentPath)}`);
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          progress.update(Math.round((e.loaded / e.total) * 100));
+        }
+      });
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try { resolve(JSON.parse(xhr.responseText || '{}')); }
+          catch { resolve({}); }
+        } else {
+          let msg = `HTTP ${xhr.status}`;
+          try { msg = JSON.parse(xhr.responseText).error || msg; } catch { /* abaikan */ }
+          reject(new Error(msg));
+        }
+      });
+      xhr.addEventListener('error', () => reject(new Error('Koneksi ke server gagal')));
+      xhr.send(formData);
+    });
+
+    const baru = (result.uploaded || []).length;
+    const timpa = (result.replaced || []).length;
+    let msg = `${files.length} file berhasil diupload`;
+    if (baru && timpa) msg = `${baru} file baru diupload, ${timpa} file lama ditimpa`;
+    else if (timpa) msg = `${timpa} file lama ditimpa`;
+    progress.done();
+    showNotification(msg, 'success');
+
+    browseFolder(state.currentPath);
+    loadStats();
+    loadExtensions();
+    loadTags();
+    loadFolderTree();
+  } catch (e) {
+    progress.done();
+    showNotification('Gagal upload: ' + e.message, 'error');
+  }
+}
+
+function showUploadProgress(fileCount) {
+  hideUploadProgress();
+  const div = document.createElement('div');
+  div.id = 'uploadProgress';
+  div.className = 'app-notification app-notification--info';
+  div.innerHTML = `<span>⬆️ Mengunggah ${fileCount} file… 0%</span>`;
+  document.body.appendChild(div);
+  return {
+    update(pct) {
+      const span = div.querySelector('span');
+      if (span) span.textContent = `⬆️ Mengunggah ${fileCount} file… ${pct}%`;
+    },
+    done() {
+      div.remove();
+    },
+  };
+}
+
+function hideUploadProgress() {
+  const existing = document.getElementById('uploadProgress');
+  if (existing) existing.remove();
+}
+
+// ─── Modal Rename ────────────────────────────────────────────────────────────
+function openRenameModal(type, id, name) {
+  state.renameTarget = { type, id, name };
+
+  DOM.renameTitle.textContent = `Rename ${type === 'folder' ? 'Folder' : 'File'}`;
+  DOM.renameInput.value = name;
+  DOM.renameError.classList.add('hidden');
+
+  DOM.renameModal.classList.remove('hidden');
+  DOM.renameModal.classList.add('flex');
+  document.body.style.overflow = 'hidden';
+  DOM.renameInput.focus();
+
+  // Pre-select nama dasar (tanpa ekstensi) untuk file
+  if (type === 'file') {
+    const dot = name.lastIndexOf('.');
+    DOM.renameInput.setSelectionRange(0, dot > 0 ? dot : name.length);
+  } else {
+    DOM.renameInput.setSelectionRange(0, name.length);
+  }
+}
+
+function closeRenameModal() {
+  DOM.renameModal.classList.add('hidden');
+  DOM.renameModal.classList.remove('flex');
+  DOM.renameError.classList.add('hidden');
+  document.body.style.overflow = '';
+  state.renameTarget = null;
+}
+
+async function saveRename() {
+  if (!state.renameTarget) return;
+
+  const newName = DOM.renameInput.value.trim();
+  if (!newName) {
+    DOM.renameError.textContent = 'Nama tidak boleh kosong';
+    DOM.renameError.classList.remove('hidden');
+    return;
+  }
+
+  try {
+    const { type, id } = state.renameTarget;
+    const endpoint = type === 'folder' ? `/api/folders/${id}/rename` : `/api/files/${id}/rename`;
+    const r = await apiFetch(endpoint, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newName }),
+    });
+    showNotification(r.message || 'Berhasil direname', 'success');
+    closeRenameModal();
+
+    // Refresh tampilan
+    if (state.isSearching) {
+      searchFiles(state.searchQuery, state.extFilter, 0);
+    } else {
+      browseFolder(state.currentPath);
+    }
+    loadFolderTree();
+    loadStats();
+  } catch (e) {
+    DOM.renameError.textContent = e.message;
+    DOM.renameError.classList.remove('hidden');
+  }
+}
+
+// ─── Keranjang Arsip (Soft Delete) ───────────────────────────────────────────
+async function loadTrash() {
+  state.isTrash = true;
+  state.isSearching = false;
+
+  setLoading(true);
+  try {
+    const data = await apiFetch('/api/trash?limit=200');
+    state.trashItems = data.items || [];
+    state.currentFiles = [];
+    state.currentFolders = [];
+    state.breadcrumb = [
+      { name: 'Home', path: '' },
+      { name: `🗑️ Keranjang (${(data.total || 0).toLocaleString('id-ID')})`, path: '' },
+    ];
+    renderBreadcrumb();
+    renderTrashList();
+  } catch (e) {
+    showError('Gagal memuat keranjang: ' + e.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+function renderTrashList() {
+  if (!DOM.fileArea) return;
+
+  if (DOM.resultCount) {
+    DOM.resultCount.textContent = `${state.trashItems.length} item di keranjang`;
+  }
+
+  DOM.fileArea.className = 'file-list';
+
+  if (state.trashItems.length === 0) {
+    DOM.fileArea.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">✅</div>
+        <p class="empty-title">Keranjang kosong</p>
+        <p class="empty-subtitle">Tidak ada item yang dihapus</p>
+      </div>
+    `;
+    return;
+  }
+
+  DOM.fileArea.innerHTML = state.trashItems.map(item => renderTrashItem(item)).join('');
+}
+
+function renderTrashItem(item) {
+  const isFolder = item.type === 'folder';
+  const name = isFolder ? item.folder_name : item.filename;
+  const meta = isFolder ? 'Folder' : `${item.file_size_formatted} · .${item.extension || '—'}`;
+  return `
+    <div class="file-list-item trash-item">
+      <span class="list-icon">${isFolder ? '📂' : '🗂️'}</span>
+      <div class="list-info">
+        <p class="file-name">${escapeHtml(name)}</p>
+        <p class="file-meta-path">${escapeHtml(item.relative_path)}</p>
+      </div>
+      <span class="list-date">Dihapus ${formatDate(item.deleted_at)}</span>
+      <span class="list-size">${meta}</span>
+      <div class="list-actions">
+        <button class="action-btn-sm" onclick="restoreTrashItem('${item.type}', ${item.id})">↩️ Pulihkan</button>
+        <button class="action-btn-sm trash-purge-btn" onclick="purgeTrashItem('${item.type}', ${item.id}, '${escapeAttr(name)}')">🗑️ Hapus Permanen</button>
+      </div>
+    </div>
+  `;
+}
+
+async function restoreTrashItem(type, id) {
+  try {
+    const endpoint = type === 'folder' ? `/api/trash/restore-folder/${id}` : `/api/trash/restore/${id}`;
+    const r = await apiFetch(endpoint, { method: 'POST' });
+    showNotification(r.message || 'Item dipulihkan', 'success');
+    await loadTrash();
+    loadStats();
+    loadFolderTree();
+    loadExtensions();
+  } catch (e) {
+    showNotification('Gagal memulihkan: ' + e.message, 'error');
+  }
+}
+
+async function purgeTrashItem(type, id, name) {
+  const msg = type === 'folder'
+    ? `Hapus PERMANEN folder "${name}" beserta SELURUH isinya?\n\n⚠️ File fisik juga akan dihapus dan tidak dapat dikembalikan!`
+    : `Hapus PERMANEN file "${name}"?\n\n⚠️ File fisik juga akan dihapus dan tidak dapat dikembalikan!`;
+
+  if (!confirm(msg)) return;
+
+  try {
+    const endpoint = type === 'folder' ? `/api/trash/folders/${id}` : `/api/trash/files/${id}`;
+    const r = await apiFetch(endpoint, { method: 'DELETE' });
+    showNotification(r.message || 'Item dihapus permanen', 'success');
+    await loadTrash();
+    loadStats();
+  } catch (e) {
+    showNotification('Gagal menghapus permanen: ' + e.message, 'error');
+  }
+}
+
+// ─── Modal Tag ───────────────────────────────────────────────────────────────
+async function openTagModal(fileId, filename, currentTags) {
+  state.tagFileId = fileId;
+  state.tagDraft = Array.isArray(currentTags) ? [...currentTags] : [];
+
+  DOM.tagTitle.textContent = `Atur Tag`;
+  DOM.tagFileName.textContent = filename;
+  DOM.tagInput.value = '';
+  renderTagChips();
+  renderTagSuggestions([]);
+
+  DOM.tagModal.classList.remove('hidden');
+  DOM.tagModal.classList.add('flex');
+  document.body.style.overflow = 'hidden';
+  DOM.tagInput.focus();
+
+  await loadTagSuggestions();
+}
+
+function closeTagModal() {
+  DOM.tagModal.classList.add('hidden');
+  DOM.tagModal.classList.remove('flex');
+  DOM.tagChips.innerHTML = '';
+  DOM.tagSuggestions.innerHTML = '';
+  document.body.style.overflow = '';
+  state.tagFileId = null;
+  state.tagDraft = [];
+}
+
+function renderTagChips() {
+  DOM.tagChips.innerHTML = state.tagDraft.length
+    ? state.tagDraft.map((t, i) => `
+        <span class="tag-chip">${escapeHtml(t)}
+          <button class="tag-chip-remove" onclick="removeTagDraft(${i})" aria-label="Hapus tag ${escapeAttr(t)}">✕</button>
+        </span>
+      `).join('')
+    : '<span class="tag-empty-hint">Belum ada tag</span>';
+}
+
+function addTagDraft() {
+  const value = DOM.tagInput.value.trim();
+  if (!value) return;
+  DOM.tagInput.value = '';
+
+  for (const part of value.split(',')) {
+    const tag = part.trim().replace(/\s+/g, ' ').slice(0, 40);
+    if (!tag) continue;
+    if (state.tagDraft.some(t => t.toLowerCase() === tag.toLowerCase())) continue;
+    if (state.tagDraft.length >= 20) break;
+    state.tagDraft.push(tag);
+  }
+  renderTagChips();
+  loadTagSuggestions();
+}
+
+function removeTagDraft(index) {
+  state.tagDraft.splice(index, 1);
+  renderTagChips();
+  loadTagSuggestions();
+}
+
+function addTagFromSuggestion(tag) {
+  DOM.tagInput.value = tag;
+  addTagDraft();
+}
+
+async function loadTagSuggestions() {
+  try {
+    const data = await apiFetch('/api/tags');
+    const existing = (data.tags || [])
+      .filter(t => !state.tagDraft.some(d => d.toLowerCase() === t.tag.toLowerCase()));
+    renderTagSuggestions(existing);
+  } catch (e) {
+    console.error('Gagal memuat saran tag:', e);
+  }
+}
+
+function renderTagSuggestions(suggestions) {
+  DOM.tagSuggestions.innerHTML = suggestions.length
+    ? suggestions.map(t => `
+        <button type="button" class="tag-suggestion" onclick="addTagFromSuggestion('${escapeAttr(t.tag)}')">
+          ${escapeHtml(t.tag)} <span class="tag-suggestion-count">${t.count}</span>
+        </button>
+      `).join('')
+    : '<span class="tag-empty-hint">Belum ada tag terdaftar</span>';
+}
+
+async function saveFileTags() {
+  if (!state.tagFileId) return;
+
+  try {
+    const r = await apiFetch(`/api/files/${state.tagFileId}/tags`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tags: state.tagDraft.join(', ') }),
+    });
+    showNotification(r.message || 'Tag disimpan', 'success');
+    closeTagModal();
+    loadTags();
+
+    // Refresh tampilan agar chip tag terbaru tampil
+    if (state.isTrash) {
+      loadTrash();
+    } else if (state.isSearching) {
+      searchFiles(state.searchQuery, state.extFilter, 0);
+    } else {
+      browseFolder(state.currentPath);
+    }
+  } catch (e) {
+    showNotification('Gagal menyimpan tag: ' + e.message, 'error');
+  }
+}
+
+async function loadMoreResults() {
+  if (state.isLoading) return;
+  await searchFiles(state.searchQuery, state.extFilter, state.currentFiles.length);
+}
+
+// ─── Live Updates (Auto-Refresh via SSE) ─────────────────────────────────────
+// Server mengirim event "archive-change" lewat GET /api/events setiap watcher
+// mendeteksi perubahan di folder arsip. Browser merespons dengan me-refresh
+// tampilan aktif secara otomatis — tanpa perlu klik manual atau reload.
+function initLiveUpdates() {
+  if (!window.EventSource) return; // Browser lama: lewati, fitur tidak wajib
+
+  const es = new EventSource('/api/events');
+
+  es.addEventListener('archive-change', () => {
+    scheduleLiveRefresh();
+  });
+
+  // EventSource otomatis reconnect saat koneksi putus — tidak perlu
+  // penanganan khusus; onerror hanya untuk debug di console.
+  es.onerror = () => {
+    console.warn('Koneksi live update terputus, mencoba ulang otomatis...');
+  };
+}
+
+function scheduleLiveRefresh() {
+  // Debounce: jika sudah ada refresh terjadwal, tunda saja waktunya
+  if (state.liveRefreshTimer) clearTimeout(state.liveRefreshTimer);
+  state.liveRefreshTimer = setTimeout(() => {
+    state.liveRefreshTimer = null;
+    refreshCurrentView();
+  }, 500);
+}
+
+async function refreshCurrentView() {
+  try {
+    if (state.isTrash) {
+      await loadTrash();
+    } else if (state.isSearching) {
+      await searchFiles(state.searchQuery, state.extFilter, 0);
+    } else {
+      await browseFolder(state.currentPath);
+    }
+    loadStats();
+    loadFolderTree();
+  } catch (e) {
+    console.error('Refresh otomatis gagal:', e);
+  }
+}
+
 // ─── Filter & View Controls ──────────────────────────────────────────────────
 function filterByExt(ext) {
   state.extFilter = ext;
   renderExtensionFilters();
   if (state.searchQuery || ext) {
     searchFiles(state.searchQuery, ext);
+  } else {
+    browseFolder(state.currentPath);
+  }
+}
+
+// ─── Filter Lanjutan ──────────────────────────────────────────────────────────
+const SIZE_UNITS = { KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3 };
+
+function hasAdvancedFilters() {
+  const f = state.advFilters;
+  return !!(f.type || f.dateFrom || f.dateTo || f.minSize || f.maxSize || f.sort);
+}
+
+function collectAdvancedFilters() {
+  state.advFilters = {
+    type: DOM.advType?.value || '',
+    folderScope: !!DOM.advFolderScope?.checked,
+    dateFrom: DOM.advDateFrom?.value || '',
+    dateTo: DOM.advDateTo?.value || '',
+    minSize: DOM.advMinSize?.value || '',
+    maxSize: DOM.advMaxSize?.value || '',
+    sizeUnit: DOM.advSizeUnit?.value || 'MB',
+    sort: DOM.advSort?.value || '',
+    order: DOM.advOrder?.value || 'desc',
+  };
+}
+
+function getAdvancedQueryParams(params) {
+  const f = state.advFilters;
+  const toBytes = (v) => {
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 0) return null;
+    return String(Math.round(n * (SIZE_UNITS[f.sizeUnit] || SIZE_UNITS.MB)));
+  };
+
+  if (f.type) params.set('type', f.type);
+  if (f.folderScope && state.currentPath) params.set('folder', state.currentPath);
+  if (f.dateFrom) params.set('from', f.dateFrom);
+  if (f.dateTo) params.set('to', f.dateTo);
+  if (f.minSize) {
+    const bytes = toBytes(f.minSize);
+    if (bytes !== null) params.set('min_size', bytes);
+  }
+  if (f.maxSize) {
+    const bytes = toBytes(f.maxSize);
+    if (bytes !== null) params.set('max_size', bytes);
+  }
+  if (f.sort) {
+    params.set('sort', f.sort);
+    params.set('order', f.order);
+  }
+}
+
+function buildSearchLabel(query, ext) {
+  const parts = [];
+  if (query) parts.push(`"${query}"`);
+  if (ext) parts.push(`.${ext}`);
+  if (state.tagFilter) parts.push(`#${state.tagFilter}`);
+  const f = state.advFilters;
+  if (f.type) parts.push(f.type);
+  if (f.dateFrom || f.dateTo) parts.push(`${f.dateFrom || '…'}–${f.dateTo || '…'}`);
+  if (f.folderScope && state.currentPath) parts.push(`di ${state.currentPath}`);
+  return parts.length ? escapeHtml(parts.join(' · ')) : 'filter lanjutan';
+}
+
+function applyAdvancedFilters() {
+  collectAdvancedFilters();
+  searchFiles(state.searchQuery, state.extFilter, 0);
+}
+
+function resetAdvancedFilters() {
+  if (DOM.advType) DOM.advType.value = '';
+  if (DOM.advFolderScope) DOM.advFolderScope.checked = false;
+  if (DOM.advDateFrom) DOM.advDateFrom.value = '';
+  if (DOM.advDateTo) DOM.advDateTo.value = '';
+  if (DOM.advMinSize) DOM.advMinSize.value = '';
+  if (DOM.advMaxSize) DOM.advMaxSize.value = '';
+  if (DOM.advSizeUnit) DOM.advSizeUnit.value = 'MB';
+  if (DOM.advSort) DOM.advSort.value = '';
+  if (DOM.advOrder) DOM.advOrder.value = 'desc';
+  collectAdvancedFilters();
+
+  if (state.searchQuery || state.extFilter) {
+    searchFiles(state.searchQuery, state.extFilter, 0);
   } else {
     browseFolder(state.currentPath);
   }
@@ -604,6 +1155,19 @@ function setLoading(isLoading) {
   state.isLoading = isLoading;
   if (DOM.loadingSpinner) {
     DOM.loadingSpinner.classList.toggle('hidden', !isLoading);
+  }
+  updateToolbarMode();
+}
+
+// Upload hanya aktif di tampilan folder (bukan hasil pencarian/keranjang)
+function updateToolbarMode() {
+  if (DOM.btnUpload) {
+    const inFolder = !state.isSearching && !state.isTrash;
+    DOM.btnUpload.disabled = !inFolder;
+    DOM.btnUpload.style.opacity = inFolder ? '1' : '0.4';
+    DOM.btnUpload.title = inFolder
+      ? 'Unggah file ke folder ini (atau seret file ke area daftar)'
+      : 'Upload hanya bisa dilakukan di tampilan folder';
   }
 }
 
@@ -668,7 +1232,37 @@ document.addEventListener('DOMContentLoaded', () => {
     btnGrid: document.getElementById('btnGrid'),
     btnList: document.getElementById('btnList'),
     btnRecent: document.getElementById('btnRecent'),
-    btnScan: document.getElementById('btnScan'),
+    // Filter lanjutan
+    advType: document.getElementById('advType'),
+    advFolderScope: document.getElementById('advFolderScope'),
+    advDateFrom: document.getElementById('advDateFrom'),
+    advDateTo: document.getElementById('advDateTo'),
+    advMinSize: document.getElementById('advMinSize'),
+    advMaxSize: document.getElementById('advMaxSize'),
+    advSizeUnit: document.getElementById('advSizeUnit'),
+    advSort: document.getElementById('advSort'),
+    advOrder: document.getElementById('advOrder'),
+    btnApplyFilters: document.getElementById('btnApplyFilters'),
+    btnResetFilters: document.getElementById('btnResetFilters'),
+    // Keranjang & modal tag
+    btnTrash: document.getElementById('btnTrash'),
+    tagModal: document.getElementById('tagModal'),
+    tagTitle: document.getElementById('tagTitle'),
+    tagFileName: document.getElementById('tagFileName'),
+    tagChips: document.getElementById('tagChips'),
+    tagInput: document.getElementById('tagInput'),
+    btnAddTag: document.getElementById('btnAddTag'),
+    tagSuggestions: document.getElementById('tagSuggestions'),
+    btnSaveTags: document.getElementById('btnSaveTags'),
+    // Filter tag, upload, rename
+    tagFilters: document.getElementById('tagFilters'),
+    btnUpload: document.getElementById('btnUpload'),
+    uploadInput: document.getElementById('uploadInput'),
+    renameModal: document.getElementById('renameModal'),
+    renameTitle: document.getElementById('renameTitle'),
+    renameInput: document.getElementById('renameInput'),
+    renameError: document.getElementById('renameError'),
+    btnSaveRename: document.getElementById('btnSaveRename'),
   };
 
   // Event listeners
@@ -683,7 +1277,67 @@ document.addEventListener('DOMContentLoaded', () => {
   DOM.btnGrid?.addEventListener('click', () => setViewMode('grid'));
   DOM.btnList?.addEventListener('click', () => setViewMode('list'));
   DOM.btnRecent?.addEventListener('click', loadRecentFiles);
-  DOM.btnScan?.addEventListener('click', loadScannedFiles);
+
+  // Filter lanjutan: select langsung menerapkan, tombol Terapkan/Reset manual
+  DOM.advType?.addEventListener('change', () => { collectAdvancedFilters(); searchFiles(state.searchQuery, state.extFilter, 0); });
+  DOM.advSort?.addEventListener('change', () => { collectAdvancedFilters(); searchFiles(state.searchQuery, state.extFilter, 0); });
+  DOM.advOrder?.addEventListener('change', () => { collectAdvancedFilters(); searchFiles(state.searchQuery, state.extFilter, 0); });
+  DOM.advDateFrom?.addEventListener('change', applyAdvancedFilters);
+  DOM.advDateTo?.addEventListener('change', applyAdvancedFilters);
+  DOM.advMinSize?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); applyAdvancedFilters(); }
+  });
+  DOM.advMaxSize?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); applyAdvancedFilters(); }
+  });
+  DOM.btnApplyFilters?.addEventListener('click', applyAdvancedFilters);
+  DOM.btnResetFilters?.addEventListener('click', resetAdvancedFilters);
+
+  // Keranjang arsip
+  DOM.btnTrash?.addEventListener('click', loadTrash);
+
+  // Modal tag
+  DOM.btnAddTag?.addEventListener('click', addTagDraft);
+  DOM.tagInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); addTagDraft(); }
+  });
+  DOM.btnSaveTags?.addEventListener('click', saveFileTags);
+  DOM.tagModal?.addEventListener('click', (e) => {
+    if (e.target === DOM.tagModal) closeTagModal();
+  });
+
+  // Upload
+  DOM.btnUpload?.addEventListener('click', pickUploadFiles);
+  DOM.uploadInput?.addEventListener('change', (e) => {
+    if (e.target.files?.length) uploadFiles(e.target.files);
+  });
+
+  // Drag & drop upload ke area daftar file
+  DOM.fileArea?.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    if (!state.isSearching && !state.isTrash) DOM.fileArea.classList.add('drag-over');
+  });
+  DOM.fileArea?.addEventListener('dragleave', () => {
+    DOM.fileArea.classList.remove('drag-over');
+  });
+  DOM.fileArea?.addEventListener('drop', (e) => {
+    e.preventDefault();
+    DOM.fileArea.classList.remove('drag-over');
+    if (state.isSearching || state.isTrash) {
+      showNotification('Upload hanya bisa dilakukan di tampilan folder', 'info');
+      return;
+    }
+    if (e.dataTransfer?.files?.length) uploadFiles(e.dataTransfer.files);
+  });
+
+  // Modal rename
+  DOM.btnSaveRename?.addEventListener('click', saveRename);
+  DOM.renameInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); saveRename(); }
+  });
+  DOM.renameModal?.addEventListener('click', (e) => {
+    if (e.target === DOM.renameModal) closeRenameModal();
+  });
 
   // Close modal on backdrop click
   DOM.previewModal?.addEventListener('click', (e) => {
@@ -692,28 +1346,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Keyboard shortcut: Escape to close modal
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closePreview();
+    if (e.key === 'Escape') {
+      closePreview();
+      closeTagModal();
+      closeRenameModal();
+    }
   });
 
   // Initial data load
+  initLiveUpdates();
   Promise.all([
     loadStats(),
     loadExtensions(),
+    loadTags(),
     loadFolderTree(),
     browseFolder(''),
   ]).catch(console.error);
 });
 
 // Expose functions needed by inline HTML onclick handlers
-window.browseFolder    = browseFolder;
-window.filterByExt     = filterByExt;
-window.openPreview     = openPreview;
-window.closePreview    = closePreview;
-window.setViewMode     = setViewMode;
+window.browseFolder = browseFolder;
+window.filterByExt = filterByExt;
+window.applyAdvancedFilters = applyAdvancedFilters;
+window.resetAdvancedFilters = resetAdvancedFilters;
+window.openPreview = openPreview;
+window.closePreview = closePreview;
+window.setViewMode = setViewMode;
 window.loadRecentFiles = loadRecentFiles;
-window.loadScannedFiles = loadScannedFiles;
-window.deleteItem      = deleteItem;
+window.deleteItem = deleteItem;
 window.showContextMenu = showContextMenu;
+window.loadTrash = loadTrash;
+window.restoreTrashItem = restoreTrashItem;
+window.purgeTrashItem = purgeTrashItem;
+window.closeTagModal = closeTagModal;
+window.addTagDraft = addTagDraft;
+window.removeTagDraft = removeTagDraft;
+window.addTagFromSuggestion = addTagFromSuggestion;
+window.loadMoreResults = loadMoreResults;
+window.filterByTag = filterByTag;
+window.closeRenameModal = closeRenameModal;
 
 // ─── Context Menu ──────────────────────────────────────────────────────────────
 let ctxMenu = null;
@@ -741,11 +1412,11 @@ function showContextMenu(e, el) {
 
   const menu = createContextMenu();
   const type = el.dataset.ctxType;
-  const id   = el.dataset.ctxId;
+  const id = el.dataset.ctxId;
   const name = el.dataset.ctxName;
   const mime = el.dataset.ctxMime || '';
-  const ext  = (el.dataset.ctxExt || name.split('.').pop() || '').toLowerCase();
-  const ctxPath    = el.dataset.ctxPath || '';
+  const ext = (el.dataset.ctxExt || name.split('.').pop() || '').toLowerCase();
+  const ctxPath = el.dataset.ctxPath || '';
   const previewType = type === 'file' ? getPreviewType(mime) : null;
 
   let items = '';
@@ -786,9 +1457,22 @@ function showContextMenu(e, el) {
     if (previewType) {
       items += `
         <button class="ctx-item" onclick="ctxAction('preview', ${id}, '${escapeAttr(name)}', '${escapeAttr(mime)}')">
-          <span class="ctx-item-icon">🔍</span> Preview
+          <span class="ctx-item-icon"><img src="/images/icon-pencarian.png" class="ctx-icon-img" alt="" /></span> Preview
         </button>`;
     }
+
+    // ── Atur Tag
+    const ctxTags = (el.dataset.ctxTags || '').split(',').map(t => t.trim()).filter(Boolean);
+    items += `
+      <button class="ctx-item" onclick="ctxAction('tags', ${id}, '${escapeAttr(name)}', null, null, '${escapeAttr(ctxTags.join(', '))}')">
+        <span class="ctx-item-icon">🏷️</span> Atur Tag...
+      </button>`;
+
+    // ── Rename
+    items += `
+      <button class="ctx-item" onclick="ctxAction('rename-file', ${id}, '${escapeAttr(name)}')">
+        <span class="ctx-item-icon">✏️</span> Rename
+      </button>`;
 
     // ── Unduh
     items += `
@@ -813,6 +1497,9 @@ function showContextMenu(e, el) {
         <span class="ctx-item-icon">🗂️</span> Buka di Explorer
       </button>
       <div class="ctx-divider"></div>
+      <button class="ctx-item" onclick="ctxAction('rename-folder', ${id}, '${escapeAttr(name)}')">
+        <span class="ctx-item-icon">✏️</span> Rename
+      </button>
       <button class="ctx-item ctx-item--danger" onclick="ctxAction('delete-folder', ${id}, '${escapeAttr(name)}')">
         <span class="ctx-item-icon">🗑️</span> Hapus
       </button>`;
@@ -826,10 +1513,10 @@ function showContextMenu(e, el) {
   const menuH = menu.offsetHeight || 200;
   let x = e.clientX;
   let y = e.clientY;
-  if (x + menuW > window.innerWidth)  x = window.innerWidth  - menuW - 8;
+  if (x + menuW > window.innerWidth) x = window.innerWidth - menuW - 8;
   if (y + menuH > window.innerHeight) y = window.innerHeight - menuH - 8;
   menu.style.left = x + 'px';
-  menu.style.top  = y + 'px';
+  menu.style.top = y + 'px';
 
   // Cek apakah submenu keluar layar kanan → tampilkan ke kiri
   requestAnimationFrame(() => {
@@ -847,11 +1534,11 @@ function hideContextMenu() {
 
 // ─── getOpenWithApps: Rekomendasi aplikasi berdasarkan ekstensi ──────────────
 function getOpenWithApps(ext, mime) {
-  const isText   = ['txt','csv','log','json','xml','html','css','js','md','ini','cfg'].includes(ext);
-  const isImage  = mime?.startsWith('image/');
-  const isDoc    = ['doc','docx','odt','rtf'].includes(ext);
-  const isSheet  = ['xls','xlsx','ods','csv'].includes(ext);
-  const isPpt    = ['ppt','pptx','odp'].includes(ext);
+  const isText = ['txt', 'csv', 'log', 'json', 'xml', 'html', 'css', 'js', 'md', 'ini', 'cfg'].includes(ext);
+  const isImage = mime?.startsWith('image/');
+  const isDoc = ['doc', 'docx', 'odt', 'rtf'].includes(ext);
+  const isSheet = ['xls', 'xlsx', 'ods', 'csv'].includes(ext);
+  const isPpt = ['ppt', 'pptx', 'odp'].includes(ext);
 
   const apps = [];
 
@@ -863,7 +1550,7 @@ function getOpenWithApps(ext, mime) {
   }
   if (isImage) {
     apps.push({ key: 'mspaint', icon: '🎨', label: 'Paint', color: 'orange' });
-    apps.push({ key: 'photos',  icon: '🖼️', label: 'Foto Windows', color: 'purple' });
+    apps.push({ key: 'photos', icon: '🖼️', label: 'Foto Windows', color: 'purple' });
   }
   if (!isImage && !isText) {
     apps.push({ key: 'notepad', icon: '🗒️', label: 'Notepad', color: 'gray' });
@@ -875,12 +1562,21 @@ function getOpenWithApps(ext, mime) {
   return apps;
 }
 
-async function ctxAction(action, id, nameOrPath, mime, appKey) {
+async function ctxAction(action, id, nameOrPath, mime, appKey, tagsCsv) {
   hideContextMenu();
 
   switch (action) {
     case 'preview':
       openPreview(id, nameOrPath, mime);
+      break;
+    case 'tags': {
+      const currentTags = (tagsCsv || '').split(',').map(t => t.trim()).filter(Boolean);
+      openTagModal(id, nameOrPath, currentTags);
+      break;
+    }
+    case 'rename-file':
+    case 'rename-folder':
+      openRenameModal(action === 'rename-folder' ? 'folder' : 'file', id, nameOrPath);
       break;
     case 'download':
       window.location.href = `/api/files/download/${id}`;
