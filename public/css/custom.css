@@ -119,6 +119,11 @@ body {
   box-shadow: 0 0 20px var(--accent-glow);
 }
 
+.app-logo-icon .icon-img {
+  width: 20px;
+  height: 20px;
+}
+
 .app-logo-text {
   font-size: 16px;
   font-weight: 700;
@@ -1673,6 +1678,34 @@ body {
 .tag-save-btn:hover {
   background: var(--accent-hover);
 }
+
+/* ─── Ikon SVG Pengganti Emoji ───────────────────────────────── */
+/* Ikon gambar dirender identik di semua OS/browser — tidak
+   bergantung pada font emoji sistem. Ukuran disesuaikan per kontainer. */
+.icon-img {
+  display: inline-block;
+  vertical-align: middle;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.header-btn .icon-img { width: 14px; height: 14px; }
+.toolbar-btn .icon-img { width: 13px; height: 13px; }
+.stat-icon .icon-img { width: 20px; height: 20px; }
+.ext-filter-btn .icon-img { width: 13px; height: 13px; }
+.folder-icon .icon-img { width: 15px; height: 15px; }
+.file-icon .icon-img { width: 26px; height: 26px; }
+.list-icon .icon-img { width: 20px; height: 20px; }
+.ctx-item-icon .icon-img { width: 14px; height: 14px; display: block; margin: 0 auto; }
+.ctx-app-badge .icon-img { width: 12px; height: 12px; }
+.action-btn-sm .icon-img { width: 12px; height: 12px; }
+.load-more-btn .icon-img { width: 13px; height: 13px; }
+.empty-icon .icon-img { width: 48px; height: 48px; }
+.preview-audio-icon .icon-img { width: 56px; height: 56px; }
+.tag-save-btn .icon-img { width: 13px; height: 13px; }
+.modal-download-link .icon-img { width: 13px; height: 13px; }
+.app-notification .icon-img { width: 14px; height: 14px; }
+.view-btn .icon-img { width: 14px; height: 14px; }
 
 /* ─── Toolbar: Tombol Upload ─────────────────────────────────── */
 .toolbar-btn {

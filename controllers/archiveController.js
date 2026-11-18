@@ -279,7 +279,7 @@ function getFolderTree(req, res) {
   const db = getDb();
 
   const folders = db.prepare(`
-    SELECT folder_name, relative_path, parent_path
+    SELECT id, folder_name, relative_path, parent_path
     FROM folders
     WHERE is_deleted = 0
     ORDER BY relative_path COLLATE NOCASE ASC
@@ -296,6 +296,7 @@ function buildTree(folders) {
 
   for (const folder of folders) {
     nodeMap[folder.relative_path] = {
+      id: folder.id,
       name: folder.folder_name,
       path: folder.relative_path,
       children: [],

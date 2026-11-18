@@ -25,7 +25,7 @@
     <!-- ══════════════════ HEADER ══════════════════ -->
     <header class="app-header">
       <a class="app-logo" href="/" title="Kembali ke Home">
-        <div class="app-logo-icon">🗄️</div>
+        <div class="app-logo-icon"><img src="/images/icon-arsip.svg" class="icon-img" alt="" /></div>
         <span class="app-logo-text">
           <%= appName %>
         </span>
@@ -45,7 +45,7 @@
           Terbaru
         </button>
         <button id="btnTrash" class="header-btn header-btn--trash" title="Keranjang arsip — item yang dihapus bisa dipulihkan">
-          🗑️ Keranjang
+          <img src="/images/icon-trash.svg" class="icon-img" alt="" /> Keranjang
         </button>
         <a href="/api/stats" target="_blank" class="header-btn" title="Lihat statistik JSON">
           Stats
@@ -62,22 +62,22 @@
         <div id="statsContainer">
           <!-- Diisi oleh app.js -->
           <div class="stat-card">
-            <div class="stat-icon">⏳</div>
+            <div class="stat-icon"><img src="/images/icon-folder.svg" class="icon-img" alt="" /></div>
             <div class="stat-value">...</div>
             <div class="stat-label">Memuat</div>
           </div>
           <div class="stat-card">
-            <div class="stat-icon">⏳</div>
+            <div class="stat-icon"><img src="/images/icon-save.svg" class="icon-img" alt="" /></div>
             <div class="stat-value">...</div>
             <div class="stat-label">Memuat</div>
           </div>
           <div class="stat-card">
-            <div class="stat-icon">⏳</div>
+            <div class="stat-icon"><img src="/images/icon-arsip.svg" class="icon-img" alt="" /></div>
             <div class="stat-value">...</div>
             <div class="stat-label">Memuat</div>
           </div>
           <div class="stat-card">
-            <div class="stat-icon">⏳</div>
+            <div class="stat-icon"><img src="/images/icon-bookmark.svg" class="icon-img" alt="" /></div>
             <div class="stat-value">...</div>
             <div class="stat-label">Memuat</div>
           </div>
@@ -216,13 +216,13 @@
         <!-- Upload -->
         <input type="file" id="uploadInput" multiple class="hidden" />
         <button id="btnUpload" class="toolbar-btn" title="Unggah file ke folder ini (atau seret file ke area daftar)">
-          ⬆️ Upload
+          <img src="/images/icon-upload.svg" class="icon-img" alt="" /> Upload
         </button>
 
         <!-- Grid / List Toggle -->
         <div class="view-toggle" role="group" aria-label="Pilih tampilan">
-          <button id="btnGrid" class="view-btn active" title="Tampilan Grid" aria-pressed="true">⊞</button>
-          <button id="btnList" class="view-btn" title="Tampilan List" aria-pressed="false">☰</button>
+          <button id="btnGrid" class="view-btn active" title="Tampilan Grid" aria-pressed="true"><img src="/images/icon-grid.svg" class="icon-img" alt="" /></button>
+          <button id="btnList" class="view-btn" title="Tampilan List" aria-pressed="false"><img src="/images/icon-list.svg" class="icon-img" alt="" /></button>
         </div>
       </div>
 
@@ -248,10 +248,10 @@
         <h2 class="modal-title" id="previewTitle">Preview File</h2>
         <div class="modal-actions">
           <a id="previewDownloadBtn" href="#" download class="modal-download-link" aria-label="Download file">
-            ⬇️ Unduh
+            <img src="/images/icon-download.svg" class="icon-img" alt="" /> Unduh
           </a>
           <button class="modal-close-btn" onclick="closePreview()" aria-label="Tutup preview">
-            ✕ Tutup
+            × Tutup
           </button>
         </div>
       </div>
@@ -268,7 +268,7 @@
         <h2 class="modal-title" id="tagTitle">Atur Tag</h2>
         <div class="modal-actions">
           <button class="modal-close-btn" onclick="closeTagModal()" aria-label="Tutup modal tag">
-            ✕ Tutup
+            × Tutup
           </button>
         </div>
       </div>
@@ -289,7 +289,7 @@
         </div>
       </div>
       <div class="tag-modal-footer">
-        <button id="btnSaveTags" class="tag-save-btn" type="button">💾 Simpan Tag</button>
+        <button id="btnSaveTags" class="tag-save-btn" type="button"><img src="/images/icon-save.svg" class="icon-img" alt="" /> Simpan Tag</button>
       </div>
     </div>
   </div>
@@ -301,7 +301,7 @@
         <h2 class="modal-title" id="renameTitle">Rename</h2>
         <div class="modal-actions">
           <button class="modal-close-btn" onclick="closeRenameModal()" aria-label="Tutup modal rename">
-            ✕ Tutup
+            × Tutup
           </button>
         </div>
       </div>
@@ -311,7 +311,7 @@
         <p class="rename-error hidden" id="renameError"></p>
       </div>
       <div class="tag-modal-footer">
-        <button id="btnSaveRename" class="tag-save-btn" type="button">💾 Simpan</button>
+        <button id="btnSaveRename" class="tag-save-btn" type="button"><img src="/images/icon-save.svg" class="icon-img" alt="" /> Simpan</button>
       </div>
     </div>
   </div>

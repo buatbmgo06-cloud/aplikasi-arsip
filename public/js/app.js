@@ -49,45 +49,54 @@ const state = {
 let DOM = {};
 
 // ─── Icon mapping ─────────────────────────────────────────────────────────
+// Emoji diganti ikon SVG (public/images/icon-*.svg) agar tampilan konsisten
+// di semua perangkat — emoji bergantung pada font sistem dan bisa tampil
+// sebagai kotak kosong di komputer tanpa font emoji.
+
+// Helper: markup ikon SVG berdasarkan nama file di /images
+function imgIcon(name) {
+  return `<img src="/images/icon-${name}.svg" class="icon-img" alt="" />`;
+}
+
 const EXT_ICONS = {
   // Documents
-  pdf: { icon: '📄', color: 'text-red-400', bg: 'bg-red-900/30' },
-  doc: { icon: '📝', color: 'text-blue-400', bg: 'bg-blue-900/30' },
-  docx: { icon: '📝', color: 'text-blue-400', bg: 'bg-blue-900/30' },
-  xls: { icon: '📊', color: 'text-green-400', bg: 'bg-green-900/30' },
-  xlsx: { icon: '📊', color: 'text-green-400', bg: 'bg-green-900/30' },
-  ppt: { icon: '📊', color: 'text-orange-400', bg: 'bg-orange-900/30' },
-  pptx: { icon: '📊', color: 'text-orange-400', bg: 'bg-orange-900/30' },
-  txt: { icon: '📃', color: 'text-gray-300', bg: 'bg-gray-800/50' },
-  csv: { icon: '📊', color: 'text-emerald-400', bg: 'bg-emerald-900/30' },
+  pdf: { icon: imgIcon('pdf'), color: 'text-red-400', bg: 'bg-red-900/30' },
+  doc: { icon: imgIcon('dokumen'), color: 'text-blue-400', bg: 'bg-blue-900/30' },
+  docx: { icon: imgIcon('dokumen'), color: 'text-blue-400', bg: 'bg-blue-900/30' },
+  xls: { icon: imgIcon('grafik'), color: 'text-green-400', bg: 'bg-green-900/30' },
+  xlsx: { icon: imgIcon('grafik'), color: 'text-green-400', bg: 'bg-green-900/30' },
+  ppt: { icon: imgIcon('grafik'), color: 'text-orange-400', bg: 'bg-orange-900/30' },
+  pptx: { icon: imgIcon('grafik'), color: 'text-orange-400', bg: 'bg-orange-900/30' },
+  txt: { icon: imgIcon('dokumen'), color: 'text-gray-300', bg: 'bg-gray-800/50' },
+  csv: { icon: imgIcon('grafik'), color: 'text-emerald-400', bg: 'bg-emerald-900/30' },
   // Images
-  jpg: { icon: '🖼️', color: 'text-purple-400', bg: 'bg-purple-900/30' },
-  jpeg: { icon: '🖼️', color: 'text-purple-400', bg: 'bg-purple-900/30' },
-  png: { icon: '🖼️', color: 'text-purple-400', bg: 'bg-purple-900/30' },
-  gif: { icon: '🖼️', color: 'text-purple-400', bg: 'bg-purple-900/30' },
-  webp: { icon: '🖼️', color: 'text-purple-400', bg: 'bg-purple-900/30' },
-  svg: { icon: '🎨', color: 'text-pink-400', bg: 'bg-pink-900/30' },
+  jpg: { icon: imgIcon('gambar'), color: 'text-purple-400', bg: 'bg-purple-900/30' },
+  jpeg: { icon: imgIcon('gambar'), color: 'text-purple-400', bg: 'bg-purple-900/30' },
+  png: { icon: imgIcon('gambar'), color: 'text-purple-400', bg: 'bg-purple-900/30' },
+  gif: { icon: imgIcon('gambar'), color: 'text-purple-400', bg: 'bg-purple-900/30' },
+  webp: { icon: imgIcon('gambar'), color: 'text-purple-400', bg: 'bg-purple-900/30' },
+  svg: { icon: imgIcon('gambar'), color: 'text-pink-400', bg: 'bg-pink-900/30' },
   // Video
-  mp4: { icon: '🎬', color: 'text-yellow-400', bg: 'bg-yellow-900/30' },
-  avi: { icon: '🎬', color: 'text-yellow-400', bg: 'bg-yellow-900/30' },
-  mov: { icon: '🎬', color: 'text-yellow-400', bg: 'bg-yellow-900/30' },
-  mkv: { icon: '🎬', color: 'text-yellow-400', bg: 'bg-yellow-900/30' },
+  mp4: { icon: imgIcon('video'), color: 'text-yellow-400', bg: 'bg-yellow-900/30' },
+  avi: { icon: imgIcon('video'), color: 'text-yellow-400', bg: 'bg-yellow-900/30' },
+  mov: { icon: imgIcon('video'), color: 'text-yellow-400', bg: 'bg-yellow-900/30' },
+  mkv: { icon: imgIcon('video'), color: 'text-yellow-400', bg: 'bg-yellow-900/30' },
   // Audio
-  mp3: { icon: '🎵', color: 'text-cyan-400', bg: 'bg-cyan-900/30' },
-  wav: { icon: '🎵', color: 'text-cyan-400', bg: 'bg-cyan-900/30' },
-  flac: { icon: '🎵', color: 'text-cyan-400', bg: 'bg-cyan-900/30' },
+  mp3: { icon: imgIcon('musik'), color: 'text-cyan-400', bg: 'bg-cyan-900/30' },
+  wav: { icon: imgIcon('musik'), color: 'text-cyan-400', bg: 'bg-cyan-900/30' },
+  flac: { icon: imgIcon('musik'), color: 'text-cyan-400', bg: 'bg-cyan-900/30' },
   // Archives
-  zip: { icon: '🗜️', color: 'text-amber-400', bg: 'bg-amber-900/30' },
-  rar: { icon: '🗜️', color: 'text-amber-400', bg: 'bg-amber-900/30' },
-  '7z': { icon: '🗜️', color: 'text-amber-400', bg: 'bg-amber-900/30' },
+  zip: { icon: imgIcon('zip'), color: 'text-amber-400', bg: 'bg-amber-900/30' },
+  rar: { icon: imgIcon('zip'), color: 'text-amber-400', bg: 'bg-amber-900/30' },
+  '7z': { icon: imgIcon('zip'), color: 'text-amber-400', bg: 'bg-amber-900/30' },
   // Code
-  js: { icon: '💻', color: 'text-yellow-300', bg: 'bg-yellow-900/30' },
-  py: { icon: '💻', color: 'text-blue-300', bg: 'bg-blue-900/30' },
-  html: { icon: '💻', color: 'text-orange-300', bg: 'bg-orange-900/30' },
-  css: { icon: '💻', color: 'text-blue-300', bg: 'bg-blue-900/30' },
+  js: { icon: imgIcon('kode'), color: 'text-yellow-300', bg: 'bg-yellow-900/30' },
+  py: { icon: imgIcon('kode'), color: 'text-blue-300', bg: 'bg-blue-900/30' },
+  html: { icon: imgIcon('kode'), color: 'text-orange-300', bg: 'bg-orange-900/30' },
+  css: { icon: imgIcon('kode'), color: 'text-blue-300', bg: 'bg-blue-900/30' },
 };
 
-const DEFAULT_ICON = { icon: '📁', color: 'text-gray-400', bg: 'bg-gray-800/50' };
+const DEFAULT_ICON = { icon: imgIcon('folder'), color: 'text-gray-400', bg: 'bg-gray-800/50' };
 
 function getFileIcon(ext) {
   return EXT_ICONS[ext?.toLowerCase()] || DEFAULT_ICON;
@@ -227,22 +236,22 @@ function renderStats() {
   const s = state.stats;
   DOM.statsContainer.innerHTML = `
     <div class="stat-card">
-      <div class="stat-icon">📁</div>
+      <div class="stat-icon">${imgIcon('folder')}</div>
       <div class="stat-value">${(s.total_files || 0).toLocaleString('id-ID')}</div>
       <div class="stat-label">Total File</div>
     </div>
     <div class="stat-card">
-      <div class="stat-icon">💾</div>
+      <div class="stat-icon">${imgIcon('save')}</div>
       <div class="stat-value">${s.total_size_formatted || '0 B'}</div>
       <div class="stat-label">Total Ukuran</div>
     </div>
     <div class="stat-card">
-      <div class="stat-icon">🗂️</div>
+      <div class="stat-icon">${imgIcon('arsip')}</div>
       <div class="stat-value">${(s.total_folders || 0).toLocaleString('id-ID')}</div>
       <div class="stat-label">Total Folder</div>
     </div>
     <div class="stat-card">
-      <div class="stat-icon">🔖</div>
+      <div class="stat-icon">${imgIcon('bookmark')}</div>
       <div class="stat-value">${(s.total_extensions || 0).toLocaleString('id-ID')}</div>
       <div class="stat-label">Jenis File</div>
     </div>
@@ -267,7 +276,7 @@ function renderExtensionFilters() {
 
   DOM.extFilters.innerHTML = `
     <button class="ext-filter-btn ${!state.extFilter ? 'active' : ''}" onclick="filterByExt('')">
-      🗂️ Semua
+      ${imgIcon('arsip')} Semua
     </button>
     ${btns}
   `;
@@ -290,7 +299,7 @@ function renderTagFilters() {
     <button class="ext-filter-btn ${state.tagFilter === t.tag ? 'active' : ''}"
             onclick="filterByTag('${escapeAttr(t.tag)}')"
             title="${t.count} file">
-      <span>🏷️</span>
+      <span>${imgIcon('tag')}</span>
       <span class="tag-name">${escapeHtml(t.tag)}</span>
       <span class="ext-count">${t.count}</span>
     </button>
@@ -298,7 +307,7 @@ function renderTagFilters() {
 
   DOM.tagFilters.innerHTML = `
     <button class="ext-filter-btn ${!state.tagFilter ? 'active' : ''}" onclick="filterByTag('')">
-      🔖 Semua
+      ${imgIcon('bookmark')} Semua
     </button>
     ${btns}
   `;
@@ -332,7 +341,7 @@ function renderFolderTree(nodes, container, depth) {
     const btn = document.createElement('button');
     btn.className = `folder-tree-item ${state.currentPath === node.path ? 'active' : ''}`;
     btn.innerHTML = `
-      <span class="folder-icon">${node.children?.length ? '📂' : '📁'}</span>
+      <span class="folder-icon">${node.children?.length ? imgIcon('folder-open') : imgIcon('folder')}</span>
       <span class="folder-name">${escapeHtml(node.name)}</span>
     `;
     btn.addEventListener('click', () => {
@@ -341,6 +350,12 @@ function renderFolderTree(nodes, container, depth) {
       document.querySelectorAll('.folder-tree-item').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
     });
+    // Klik kanan di navigasi folder → menu konteks (Buka, Explorer, Rename, Hapus)
+    btn.addEventListener('contextmenu', (e) => showContextMenu(e, btn));
+    btn.dataset.ctxType = 'folder';
+    btn.dataset.ctxId = node.id;
+    btn.dataset.ctxName = node.name;
+    btn.dataset.ctxPath = node.path;
 
     li.appendChild(btn);
 
@@ -414,7 +429,7 @@ function renderFileGrid() {
     html += `
       <div class="load-more-wrap">
         <button class="load-more-btn" onclick="loadMoreResults()">
-          ⬇️ Muat lebih banyak (${(state.searchTotal - state.currentFiles.length).toLocaleString('id-ID')} lagi)
+          ${imgIcon('download')} Muat lebih banyak (${(state.searchTotal - state.currentFiles.length).toLocaleString('id-ID')} lagi)
         </button>
       </div>
     `;
@@ -437,7 +452,7 @@ function renderFolderCard(folder, isGrid) {
     return `
       <div class="file-card folder-card" ${ctxData} oncontextmenu="showContextMenu(event, this)">
         <div class="file-icon-wrap bg-yellow-900/30" onclick="browseFolder('${escapeAttr(folder.relative_path)}')">
-          <span class="file-icon">📂</span>
+          <span class="file-icon">${imgIcon('folder-open')}</span>
         </div>
         <div class="file-info" onclick="browseFolder('${escapeAttr(folder.relative_path)}')">
           <p class="file-name" title="${escapeHtml(folder.folder_name)}">${escapeHtml(folder.folder_name)}</p>
@@ -449,7 +464,7 @@ function renderFolderCard(folder, isGrid) {
   }
   return `
     <div class="file-list-item folder-card" ${ctxData} oncontextmenu="showContextMenu(event, this)">
-      <span class="list-icon" onclick="browseFolder('${escapeAttr(folder.relative_path)}')">📂</span>
+      <span class="list-icon" onclick="browseFolder('${escapeAttr(folder.relative_path)}')">${imgIcon('folder-open')}</span>
       <div class="list-info" onclick="browseFolder('${escapeAttr(folder.relative_path)}')">
         <p class="file-name">${escapeHtml(folder.folder_name)}</p>
         <p class="file-meta-path">${escapeHtml(folder.relative_path)}</p>
@@ -543,7 +558,7 @@ function openPreview(fileId, filename, mimeType) {
   } else if (previewType === 'audio') {
     contentHtml = `
       <div class="preview-audio-wrap">
-        <div class="preview-audio-icon">🎵</div>
+        <div class="preview-audio-icon">${imgIcon('musik')}</div>
         <p class="preview-audio-name">${escapeHtml(filename)}</p>
         <audio controls class="preview-audio">
           <source src="${previewUrl}" type="${mimeType}">
@@ -586,8 +601,8 @@ function closePreview() {
 async function deleteItem(type, id, name) {
   const typeLabel = type === 'folder' ? 'folder' : 'file';
   const msg = type === 'folder'
-    ? `Anda yakin ingin menghapus folder "${name}" beserta SELURUH isinya?\n\n⚠️ Tindakan ini tidak dapat dibatalkan!`
-    : `Anda yakin ingin menghapus file "${name}"?\n\n⚠️ Tindakan ini tidak dapat dibatalkan!`;
+    ? `Pindahkan folder "${name}" beserta SELURUH isinya ke Keranjang?\n\nFolder bisa dipulihkan lagi lewat tombol Keranjang.`
+    : `Pindahkan file "${name}" ke Keranjang?\n\nFile bisa dipulihkan lagi lewat tombol Keranjang.`;
 
   if (!confirm(msg)) return;
 
@@ -624,7 +639,7 @@ function showNotification(message, type = 'info') {
   div.className = `app-notification app-notification--${type}`;
   div.innerHTML = `
     <span>${escapeHtml(message)}</span>
-    <button onclick="this.parentElement.remove()" style="background:none;border:none;color:inherit;font-size:18px;cursor:pointer;margin-left:12px;">✕</button>
+    <button onclick="this.parentElement.remove()" style="background:none;border:none;color:inherit;font-size:18px;cursor:pointer;margin-left:12px;">×</button>
   `;
   document.body.appendChild(div);
 
@@ -702,12 +717,12 @@ function showUploadProgress(fileCount) {
   const div = document.createElement('div');
   div.id = 'uploadProgress';
   div.className = 'app-notification app-notification--info';
-  div.innerHTML = `<span>⬆️ Mengunggah ${fileCount} file… 0%</span>`;
+  div.innerHTML = `<span>${imgIcon('upload')} Mengunggah ${fileCount} file… 0%</span>`;
   document.body.appendChild(div);
   return {
     update(pct) {
       const span = div.querySelector('span');
-      if (span) span.textContent = `⬆️ Mengunggah ${fileCount} file… ${pct}%`;
+      if (span) span.textContent = `Mengunggah ${fileCount} file… ${pct}%`;
     },
     done() {
       div.remove();
@@ -798,7 +813,7 @@ async function loadTrash() {
     state.currentFolders = [];
     state.breadcrumb = [
       { name: 'Home', path: '' },
-      { name: `🗑️ Keranjang (${(data.total || 0).toLocaleString('id-ID')})`, path: '' },
+      { name: `Keranjang (${(data.total || 0).toLocaleString('id-ID')})`, path: '' },
     ];
     renderBreadcrumb();
     renderTrashList();
@@ -821,7 +836,7 @@ function renderTrashList() {
   if (state.trashItems.length === 0) {
     DOM.fileArea.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon">✅</div>
+        <div class="empty-icon">${imgIcon('check')}</div>
         <p class="empty-title">Keranjang kosong</p>
         <p class="empty-subtitle">Tidak ada item yang dihapus</p>
       </div>
@@ -838,7 +853,7 @@ function renderTrashItem(item) {
   const meta = isFolder ? 'Folder' : `${item.file_size_formatted} · .${item.extension || '—'}`;
   return `
     <div class="file-list-item trash-item">
-      <span class="list-icon">${isFolder ? '📂' : '🗂️'}</span>
+      <span class="list-icon">${isFolder ? imgIcon('folder-open') : imgIcon('arsip')}</span>
       <div class="list-info">
         <p class="file-name">${escapeHtml(name)}</p>
         <p class="file-meta-path">${escapeHtml(item.relative_path)}</p>
@@ -846,8 +861,8 @@ function renderTrashItem(item) {
       <span class="list-date">Dihapus ${formatDate(item.deleted_at)}</span>
       <span class="list-size">${meta}</span>
       <div class="list-actions">
-        <button class="action-btn-sm" onclick="restoreTrashItem('${item.type}', ${item.id})">↩️ Pulihkan</button>
-        <button class="action-btn-sm trash-purge-btn" onclick="purgeTrashItem('${item.type}', ${item.id}, '${escapeAttr(name)}')">🗑️ Hapus Permanen</button>
+        <button class="action-btn-sm" onclick="restoreTrashItem('${item.type}', ${item.id})">${imgIcon('undo')} Pulihkan</button>
+        <button class="action-btn-sm trash-purge-btn" onclick="purgeTrashItem('${item.type}', ${item.id}, '${escapeAttr(name)}')">${imgIcon('trash')} Hapus Permanen</button>
       </div>
     </div>
   `;
@@ -869,8 +884,8 @@ async function restoreTrashItem(type, id) {
 
 async function purgeTrashItem(type, id, name) {
   const msg = type === 'folder'
-    ? `Hapus PERMANEN folder "${name}" beserta SELURUH isinya?\n\n⚠️ File fisik juga akan dihapus dan tidak dapat dikembalikan!`
-    : `Hapus PERMANEN file "${name}"?\n\n⚠️ File fisik juga akan dihapus dan tidak dapat dikembalikan!`;
+    ? `Hapus PERMANEN folder "${name}" beserta SELURUH isinya?\n\nFile fisik juga akan dihapus dan tidak dapat dikembalikan!`
+    : `Hapus PERMANEN file "${name}"?\n\nFile fisik juga akan dihapus dan tidak dapat dikembalikan!`;
 
   if (!confirm(msg)) return;
 
@@ -918,7 +933,7 @@ function renderTagChips() {
   DOM.tagChips.innerHTML = state.tagDraft.length
     ? state.tagDraft.map((t, i) => `
         <span class="tag-chip">${escapeHtml(t)}
-          <button class="tag-chip-remove" onclick="removeTagDraft(${i})" aria-label="Hapus tag ${escapeAttr(t)}">✕</button>
+          <button class="tag-chip-remove" onclick="removeTagDraft(${i})" aria-label="Hapus tag ${escapeAttr(t)}">×</button>
         </span>
       `).join('')
     : '<span class="tag-empty-hint">Belum ada tag</span>';
@@ -1175,7 +1190,7 @@ function showError(msg) {
   if (DOM.fileArea) {
     DOM.fileArea.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon">⚠️</div>
+        <div class="empty-icon">${imgIcon('warning')}</div>
         <p class="empty-title">Terjadi Kesalahan</p>
         <p class="empty-subtitle">${escapeHtml(msg)}</p>
       </div>
@@ -1425,7 +1440,7 @@ function showContextMenu(e, el) {
     // ── Buka (default)
     items += `
       <button class="ctx-item" onclick="ctxAction('open-default', ${id})">
-        <span class="ctx-item-icon">▶️</span> Buka (Aplikasi Default)
+        <span class="ctx-item-icon">${imgIcon('play')}</span> Buka (Aplikasi Default)
       </button>`;
 
     // ── Buka Dengan... (submenu hover)
@@ -1433,7 +1448,7 @@ function showContextMenu(e, el) {
     items += `
       <div class="ctx-submenu-wrap">
         <button class="ctx-item ctx-item--has-sub">
-          <span><span class="ctx-item-icon">🖥️</span> Buka Dengan...</span>
+          <span><span class="ctx-item-icon">${imgIcon('monitor')}</span> Buka Dengan...</span>
         </button>
         <div class="ctx-submenu">
           <div class="ctx-submenu-header">Pilih Aplikasi</div>
@@ -1445,7 +1460,7 @@ function showContextMenu(e, el) {
           `).join('')}
           <div class="ctx-divider"></div>
           <button class="ctx-item" onclick="ctxAction('openwith-dialog', ${id})">
-            <span class="ctx-app-badge ctx-app-badge--gray">📂</span>
+            <span class="ctx-app-badge ctx-app-badge--gray">${imgIcon('folder-open')}</span>
             Pilih Aplikasi Lain...
           </button>
         </div>
@@ -1465,19 +1480,19 @@ function showContextMenu(e, el) {
     const ctxTags = (el.dataset.ctxTags || '').split(',').map(t => t.trim()).filter(Boolean);
     items += `
       <button class="ctx-item" onclick="ctxAction('tags', ${id}, '${escapeAttr(name)}', null, null, '${escapeAttr(ctxTags.join(', '))}')">
-        <span class="ctx-item-icon">🏷️</span> Atur Tag...
+        <span class="ctx-item-icon">${imgIcon('tag')}</span> Atur Tag...
       </button>`;
 
     // ── Rename
     items += `
       <button class="ctx-item" onclick="ctxAction('rename-file', ${id}, '${escapeAttr(name)}')">
-        <span class="ctx-item-icon">✏️</span> Rename
+        <span class="ctx-item-icon">${imgIcon('pencil')}</span> Rename
       </button>`;
 
     // ── Unduh
     items += `
       <button class="ctx-item" onclick="ctxAction('download', ${id})">
-        <span class="ctx-item-icon">⬇️</span> Unduh
+        <span class="ctx-item-icon">${imgIcon('download')}</span> Unduh
       </button>`;
 
     items += `<div class="ctx-divider"></div>`;
@@ -1485,23 +1500,23 @@ function showContextMenu(e, el) {
     // ── Hapus
     items += `
       <button class="ctx-item ctx-item--danger" onclick="ctxAction('delete-file', ${id}, '${escapeAttr(name)}')">
-        <span class="ctx-item-icon">🗑️</span> Hapus
+        <span class="ctx-item-icon">${imgIcon('trash')}</span> Hapus
       </button>`;
 
   } else if (type === 'folder') {
     items += `
       <button class="ctx-item" onclick="ctxAction('browse', 0, '${escapeAttr(ctxPath)}')">
-        <span class="ctx-item-icon">📂</span> Buka Folder
+        <span class="ctx-item-icon">${imgIcon('folder-open')}</span> Buka Folder
       </button>
       <button class="ctx-item" onclick="ctxAction('explorer', ${id})">
-        <span class="ctx-item-icon">🗂️</span> Buka di Explorer
+        <span class="ctx-item-icon">${imgIcon('arsip')}</span> Buka di Explorer
       </button>
       <div class="ctx-divider"></div>
       <button class="ctx-item" onclick="ctxAction('rename-folder', ${id}, '${escapeAttr(name)}')">
-        <span class="ctx-item-icon">✏️</span> Rename
+        <span class="ctx-item-icon">${imgIcon('pencil')}</span> Rename
       </button>
       <button class="ctx-item ctx-item--danger" onclick="ctxAction('delete-folder', ${id}, '${escapeAttr(name)}')">
-        <span class="ctx-item-icon">🗑️</span> Hapus
+        <span class="ctx-item-icon">${imgIcon('trash')}</span> Hapus
       </button>`;
   }
 
@@ -1543,21 +1558,21 @@ function getOpenWithApps(ext, mime) {
   const apps = [];
 
   if (isDoc || isPpt || isSheet) {
-    apps.push({ key: 'wordpad', icon: '📝', label: 'WordPad', color: 'blue' });
+    apps.push({ key: 'wordpad', icon: imgIcon('dokumen'), label: 'WordPad', color: 'blue' });
   }
   if (isText || isDoc) {
-    apps.push({ key: 'notepad', icon: '🗒️', label: 'Notepad', color: 'gray' });
+    apps.push({ key: 'notepad', icon: imgIcon('dokumen'), label: 'Notepad', color: 'gray' });
   }
   if (isImage) {
-    apps.push({ key: 'mspaint', icon: '🎨', label: 'Paint', color: 'orange' });
-    apps.push({ key: 'photos', icon: '🖼️', label: 'Foto Windows', color: 'purple' });
+    apps.push({ key: 'mspaint', icon: imgIcon('pencil'), label: 'Paint', color: 'orange' });
+    apps.push({ key: 'photos', icon: imgIcon('gambar'), label: 'Foto Windows', color: 'purple' });
   }
   if (!isImage && !isText) {
-    apps.push({ key: 'notepad', icon: '🗒️', label: 'Notepad', color: 'gray' });
+    apps.push({ key: 'notepad', icon: imgIcon('dokumen'), label: 'Notepad', color: 'gray' });
   }
 
   // Selalu tampilkan di Explorer
-  apps.push({ key: 'explorer', icon: '📁', label: 'Windows Explorer', color: 'green' });
+  apps.push({ key: 'explorer', icon: imgIcon('folder'), label: 'Windows Explorer', color: 'green' });
 
   return apps;
 }
