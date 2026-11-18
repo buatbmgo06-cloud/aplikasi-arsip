@@ -9,6 +9,7 @@ const fs = require('fs');
 const { getDb, closeDb } = require('./config/database');
 const { initialScan } = require('./services/indexerService');
 const { startWatcher, stopWatcher } = require('./services/watcherService');
+const { startAutoBackup, stopAutoBackup } = require('./services/backupService');
 const apiRouter = require('./routes/api');
 
 // ─── Konfigurasi ─────────────────────────────────────────────────────────────
@@ -132,6 +133,13 @@ async function startup() {
     // Lanjutkan meski scan gagal, bukan error fatal
   }
 
+  // Mulai backup otomatis database (startup + tiap 24 jam, retensi 7 salinan)
+  try {
+    startAutoBackup();
+  } catch (err) {
+    console.error('⚠️  Gagal backup database awal:', err.message);
+  }
+
   // Mulai chokidar watcher
   try {
     startWatcher(ARCHIVE_DIR);
@@ -159,6 +167,7 @@ async function startup() {
       console.log('[Server] HTTP server dihentikan.');
     });
     await stopWatcher();
+    stopAutoBackup();
     closeDb();
     console.log('[Server] Selesai. Sampai jumpa! 👋');
     process.exit(0);

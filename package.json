@@ -17,6 +17,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "archiver": "^7.0.1",
     "better-sqlite3": "^9.4.3",
     "chokidar": "^3.6.0",
     "dotenv": "^16.4.5",

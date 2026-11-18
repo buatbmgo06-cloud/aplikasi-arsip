@@ -12,10 +12,12 @@ Aplikasi manajemen arsip dokumen berbasis **Full Local Storage** menggunakan Nod
 - 🔖 **Filter Tag** — Daftar tag di sidebar, klik untuk memfilter hasil pencarian
 - ⬆️ **Upload & Rename** — Unggah file (tombol atau drag-and-drop) dan rename file/folder dari UI
 - 🗑️ **Keranjang Arsip** — Hapus = soft delete; pulihkan atau hapus permanen lewat keranjang
+- ✅ **Seleksi Massal** — Mode pilih banyak file (grid & list) → hapus, tag massal, atau unduh semua sebagai ZIP
+- 💾 **Backup Otomatis** — Database dibackup saat startup & setiap 24 jam ke folder `backups/` (retensi 7 salinan)
 - 🔄 **Auto-Refresh Realtime** — File yang dicopy/dihapus langsung dari Explorer otomatis muncul/hilang di browser via Server-Sent Events
-- 📂 **Explorer Navigation** — Navigasi folder dengan breadcrumb & folder tree
-- 👁️ **File Preview** — Preview PDF, gambar, video, audio langsung di browser
+- 🖱️ **Buka Cepat** — Klik dua kali file untuk langsung membukanya dengan aplikasi default Windows (seperti Explorer); menu klik-kanan juga menyediakan "Buka Dengan..." untuk memilih aplikasi tertentu
 - ⬇️ **Download** — Unduh file aman via browser
+- 📂 **Explorer Navigation** — Navigasi folder dengan breadcrumb & folder tree
 - 🌐 **LAN Sharing** — Akses dari perangkat lain di jaringan yang sama
 - 🔒 **Aman** — Proteksi Directory Traversal, 100% lokal
 
@@ -101,15 +103,18 @@ local-archive-app/
 │   └── searchController.js  # FTS5 & LIKE search
 ├── services/
 │   ├── indexerService.js    # Initial scan + per-file upsert
-│   └── watcherService.js    # chokidar event handlers
+│   ├── watcherService.js    # chokidar event handlers
+│   └── backupService.js     # Backup otomatis database (startup + 24 jam)
 ├── routes/
 │   └── api.js               # REST API routes
 ├── views/
 │   └── index.ejs            # Frontend template
 ├── public/
 │   ├── js/app.js            # Vanilla JS SPA logic
-│   └── css/custom.css       # Dark theme CSS
+│   ├── css/custom.css       # Dark theme CSS
+│   └── images/icon-*.svg    # Ikon UI (SVG stroke konsisten)
 ├── data/                    # Database SQLite (auto-created)
+├── backups/                 # Backup database otomatis (gitignored)
 ├── .env.example
 ├── server.js                # Entry point
 └── package.json
@@ -130,6 +135,9 @@ local-archive-app/
 | GET | `/api/tags` | Daftar semua tag + jumlah file |
 | GET | `/api/files/:id/tags` | Tag milik satu file |
 | PUT | `/api/files/:id/tags` | Ganti tag satu file (`{ "tags": "a, b" }`) |
+| PUT | `/api/files/bulk/tags` | Tag massal — digabung dengan tag lama (`{ "ids": [1,2], "tags": "a, b" }`) |
+| POST | `/api/files/bulk/download` | Unduh banyak file sebagai ZIP (`{ "ids": [1,2] }`) |
+| DELETE | `/api/files/bulk` | Soft delete massal (`{ "ids": [1,2] }`) |
 | POST | `/api/files/upload?path=sub` | Upload file (multipart, field `files`) |
 | PATCH | `/api/files/:id/rename` | Rename file (`{ "newName": "..." }`) |
 | PATCH | `/api/folders/:id/rename` | Rename folder |

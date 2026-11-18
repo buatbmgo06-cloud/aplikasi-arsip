@@ -219,6 +219,11 @@
           <img src="/images/icon-upload.svg" class="icon-img" alt="" /> Upload
         </button>
 
+        <!-- Mode Seleksi (aksi massal) -->
+        <button id="btnSelect" class="toolbar-btn" title="Pilih banyak file untuk aksi massal">
+          <img src="/images/icon-select.svg" class="icon-img" alt="" /> Pilih
+        </button>
+
         <!-- Grid / List Toggle -->
         <div class="view-toggle" role="group" aria-label="Pilih tampilan">
           <button id="btnGrid" class="view-btn active" title="Tampilan Grid" aria-pressed="true"><img src="/images/icon-grid.svg" class="icon-img" alt="" /></button>
@@ -314,6 +319,16 @@
         <button id="btnSaveRename" class="tag-save-btn" type="button"><img src="/images/icon-save.svg" class="icon-img" alt="" /> Simpan</button>
       </div>
     </div>
+  </div>
+
+  <!-- ══════════════════ SELECTION BAR (aksi massal) ══════════════════ -->
+  <div id="selectionBar" class="selection-bar hidden">
+    <span id="selectionCount" class="selection-count">0 dipilih</span>
+    <button id="btnSelectAll" class="selection-btn" type="button">Pilih Semua</button>
+    <button id="btnBulkTag" class="selection-btn" type="button">Tag</button>
+    <button id="btnBulkDownload" class="selection-btn" type="button">Unduh ZIP</button>
+    <button id="btnBulkDelete" class="selection-btn selection-btn--danger" type="button">Hapus</button>
+    <button id="btnExitSelection" class="selection-btn selection-btn--ghost" type="button">Batal</button>
   </div>
 
   <!-- ══════════════════ INFO BAR (bottom) ══════════════════ -->

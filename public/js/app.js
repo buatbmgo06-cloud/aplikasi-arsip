@@ -30,6 +30,9 @@ const state = {
   trashItems: [],
   tagFileId: null,
   tagDraft: [],
+  tagBulkIds: null, // daftar id file untuk tag massal (mode seleksi)
+  selectionMode: false,
+  selectedIds: new Set(),
   renameTarget: null, // { type: 'file'|'folder', id, name }
   liveRefreshTimer: null,
   advFilters: {
@@ -489,8 +492,6 @@ function formatDate(dateStr) {
 
 function renderFileCard(file, isGrid) {
   const iconData = getFileIcon(file.extension);
-  const previewType = getPreviewType(file.mime_type);
-  const canPreview = !!previewType;
   const tagList = Array.isArray(file.tag_list)
     ? file.tag_list
     : (file.tags ? file.tags.split(',').map(t => t.trim()).filter(Boolean) : []);
@@ -500,7 +501,8 @@ function renderFileCard(file, isGrid) {
 
   if (isGrid) {
     return `
-      <div class="file-card" data-id="${file.id}" data-ctx-type="file" data-ctx-id="${file.id}" data-ctx-name="${escapeAttr(file.filename)}" data-ctx-mime="${escapeAttr(file.mime_type)}" data-ctx-tags="${escapeAttr(tagList.join(', '))}" oncontextmenu="showContextMenu(event, this)">
+      <div class="file-card ${state.selectionMode ? 'select-mode' : ''} ${state.selectedIds.has(file.id) ? 'selected' : ''}" data-id="${file.id}" data-ctx-type="file" data-ctx-id="${file.id}" data-ctx-name="${escapeAttr(file.filename)}" data-ctx-mime="${escapeAttr(file.mime_type)}" data-ctx-tags="${escapeAttr(tagList.join(', '))}" oncontextmenu="showContextMenu(event, this)"${state.selectionMode ? ` onclick="toggleSelect(${file.id}, this)"` : ' ondblclick="openFileDefault(' + file.id + ', event)"'}>
+        ${state.selectionMode ? `<div class="select-check ${state.selectedIds.has(file.id) ? 'checked' : ''}" onclick="event.stopPropagation(); toggleSelect(${file.id}, this.parentElement)"></div>` : ''}
         <div class="file-icon-wrap ${iconData.bg}">
           <span class="file-icon">${iconData.icon}</span>
         </div>
@@ -511,7 +513,6 @@ function renderFileCard(file, isGrid) {
           ${tagsHtml ? `<div class="file-tags">${tagsHtml}</div>` : ''}
         </div>
         <div class="file-actions">
-          ${canPreview ? `<button class="action-btn" onclick="openPreview(${file.id}, '${escapeAttr(file.filename)}', '${escapeAttr(file.mime_type)}')">Preview</button>` : ''}
           <a class="action-btn download-btn" href="/api/files/download/${file.id}" download>Unduh</a>
         </div>
       </div>
@@ -519,7 +520,8 @@ function renderFileCard(file, isGrid) {
   }
 
   return `
-    <div class="file-list-item" data-id="${file.id}" data-ctx-type="file" data-ctx-id="${file.id}" data-ctx-name="${escapeAttr(file.filename)}" data-ctx-mime="${escapeAttr(file.mime_type)}" data-ctx-tags="${escapeAttr(tagList.join(', '))}" oncontextmenu="showContextMenu(event, this)">
+    <div class="file-list-item ${state.selectionMode ? 'select-mode' : ''} ${state.selectedIds.has(file.id) ? 'selected' : ''}" data-id="${file.id}" data-ctx-type="file" data-ctx-id="${file.id}" data-ctx-name="${escapeAttr(file.filename)}" data-ctx-mime="${escapeAttr(file.mime_type)}" data-ctx-tags="${escapeAttr(tagList.join(', '))}" oncontextmenu="showContextMenu(event, this)"${state.selectionMode ? ` onclick="toggleSelect(${file.id}, this)"` : ' ondblclick="openFileDefault(' + file.id + ', event)"'}>
+      ${state.selectionMode ? `<div class="select-check ${state.selectedIds.has(file.id) ? 'checked' : ''}" onclick="event.stopPropagation(); toggleSelect(${file.id}, this.parentElement)"></div>` : ''}
       <span class="list-icon ${iconData.color}">${iconData.icon}</span>
       <div class="list-info">
         <p class="file-name">${escapeHtml(file.filename)}</p>
@@ -530,11 +532,43 @@ function renderFileCard(file, isGrid) {
       <span class="list-size">${file.file_size_formatted}</span>
       <span class="list-ext-badge" style="">.${file.extension || '?'}</span>
       <div class="list-actions">
-        ${canPreview ? `<button class="action-btn-sm" onclick="openPreview(${file.id}, '${escapeAttr(file.filename)}', '${escapeAttr(file.mime_type)}')">Preview</button>` : ''}
         <a class="action-btn-sm" href="/api/files/download/${file.id}" download>Unduh</a>
       </div>
     </div>
   `;
+}
+
+// ─── Buka File (dobel-klik / aplikasi default) ────────────────────────────────
+// Dobel-klik pada kartu/baris file membukanya dengan aplikasi default Windows,
+// sama seperti menu klik-kanan "Buka (Aplikasi Default)". Diabaikan saat mode
+// seleksi aktif atau saat klik dobel jatuh di tombol aksi dalam kartu.
+async function openFileDefault(fileId, e) {
+  if (state.selectionMode) return;
+  if (e && e.target.closest('.action-btn, .action-btn-sm, .select-check, button, a')) return;
+  await openFileWithDefaultApp(fileId);
+}
+
+/**
+ * Buka file dengan aplikasi default — HANYA berlaku saat aplikasi diakses dari
+ * komputer server (localhost), karena aplikasi yang menjalankan file adalah
+ * proses server. Dari perangkat lain via LAN, file dibuka di tab baru browser
+ * perangkat tersebut (preview) agar tidak memunculkan aplikasi di server.
+ */
+async function openFileWithDefaultApp(fileId) {
+  const isLocal = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(window.location.hostname);
+
+  if (!isLocal) {
+    window.open(`/api/files/preview/${fileId}`, '_blank');
+    showNotification('File dibuka di tab baru — aplikasi desktop hanya bisa dibuka di komputer server', 'info');
+    return;
+  }
+
+  try {
+    const r = await apiFetch(`/api/files/open/${fileId}`, { method: 'POST' });
+    showNotification(r.message || 'File dibuka dengan aplikasi default', 'success');
+  } catch (err) {
+    showNotification('Gagal membuka file: ' + err.message, 'error');
+  }
 }
 
 // ─── Preview Modal ────────────────────────────────────────────────────────────
@@ -905,7 +939,12 @@ async function openTagModal(fileId, filename, currentTags) {
   state.tagFileId = fileId;
   state.tagDraft = Array.isArray(currentTags) ? [...currentTags] : [];
 
-  DOM.tagTitle.textContent = `Atur Tag`;
+  // Judul & deskripsi menyesuaikan mode: satu file atau tag massal
+  if (state.tagBulkIds && state.tagBulkIds.length > 0) {
+    DOM.tagTitle.textContent = `Tag Massal`;
+  } else {
+    DOM.tagTitle.textContent = `Atur Tag`;
+  }
   DOM.tagFileName.textContent = filename;
   DOM.tagInput.value = '';
   renderTagChips();
@@ -926,6 +965,7 @@ function closeTagModal() {
   DOM.tagSuggestions.innerHTML = '';
   document.body.style.overflow = '';
   state.tagFileId = null;
+  state.tagBulkIds = null;
   state.tagDraft = [];
 }
 
@@ -988,6 +1028,30 @@ function renderTagSuggestions(suggestions) {
 }
 
 async function saveFileTags() {
+  // Mode tag massal: terapkan ke banyak file (tag digabung dengan yang sudah ada)
+  if (state.tagBulkIds && state.tagBulkIds.length > 0) {
+    try {
+      const r = await apiFetch('/api/files/bulk/tags', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: state.tagBulkIds, tags: state.tagDraft.join(', ') }),
+      });
+      showNotification(r.message || 'Tag massal disimpan', 'success');
+      closeTagModal();
+      loadTags();
+      exitSelectionMode();
+
+      if (state.isSearching) {
+        searchFiles(state.searchQuery, state.extFilter, 0);
+      } else {
+        browseFolder(state.currentPath);
+      }
+    } catch (e) {
+      showNotification('Gagal menyimpan tag massal: ' + e.message, 'error');
+    }
+    return;
+  }
+
   if (!state.tagFileId) return;
 
   try {
@@ -1060,6 +1124,147 @@ async function refreshCurrentView() {
     loadFolderTree();
   } catch (e) {
     console.error('Refresh otomatis gagal:', e);
+  }
+}
+
+// ─── Mode Seleksi & Aksi Massal ──────────────────────────────────────────────
+function toggleSelectionMode() {
+  state.selectionMode = !state.selectionMode;
+  if (!state.selectionMode) state.selectedIds.clear();
+  else state.selectedIds.clear(); // mulai dari kosong setiap masuk mode
+
+  // Update tombol toolbar (aktif = beraksen)
+  if (DOM.btnSelect) DOM.btnSelect.classList.toggle('active', state.selectionMode);
+
+  // Re-render tampilan agar checkbox muncul/hilang
+  if (state.isTrash) return; // seleksi tidak berlaku di keranjang
+  if (state.isSearching) {
+    searchFiles(state.searchQuery, state.extFilter, 0);
+  } else {
+    browseFolder(state.currentPath);
+  }
+  updateSelectionBar();
+}
+
+function exitSelectionMode() {
+  if (!state.selectionMode) return;
+  state.selectionMode = false;
+  state.selectedIds.clear();
+  if (DOM.btnSelect) DOM.btnSelect.classList.remove('active');
+  updateSelectionBar();
+  // Render ulang ringan: hapus kelas selected/checkbox tanpa fetch ulang
+  document.querySelectorAll('.select-mode').forEach(el => el.classList.remove('select-mode', 'selected'));
+  document.querySelectorAll('.select-check').forEach(el => el.remove());
+}
+
+function toggleSelect(fileId, cardEl) {
+  if (!state.selectionMode) return;
+  if (state.selectedIds.has(fileId)) {
+    state.selectedIds.delete(fileId);
+    cardEl?.classList.remove('selected');
+  } else {
+    state.selectedIds.add(fileId);
+    cardEl?.classList.add('selected');
+  }
+  updateSelectionBar();
+}
+
+function selectAllFiles() {
+  state.currentFiles.forEach(f => state.selectedIds.add(f.id));
+  // Update UI tanpa fetch ulang
+  document.querySelectorAll('.file-card, .file-list-item').forEach(el => {
+    const id = parseInt(el.dataset.id, 10);
+    if (!isNaN(id) && state.selectedIds.has(id)) {
+      el.classList.add('selected');
+      el.querySelector('.select-check')?.classList.add('checked');
+    }
+  });
+  updateSelectionBar();
+}
+
+function updateSelectionBar() {
+  if (!DOM.selectionBar) return;
+  const count = state.selectedIds.size;
+  const show = state.selectionMode;
+
+  DOM.selectionBar.classList.toggle('hidden', !show);
+  if (DOM.selectionCount) {
+    DOM.selectionCount.textContent = show ? `${count.toLocaleString('id-ID')} dipilih` : '';
+  }
+  // Aksi tak tersedia sebelum ada yang dipilih
+  for (const btn of [DOM.btnBulkDelete, DOM.btnBulkTag, DOM.btnBulkDownload, DOM.btnSelectAll]) {
+    if (btn) btn.disabled = show && count === 0;
+  }
+}
+
+async function bulkDeleteSelection() {
+  const ids = [...state.selectedIds];
+  if (ids.length === 0) return;
+
+  if (!confirm(`Pindahkan ${ids.length} file ke Keranjang?\n\nFile bisa dipulihkan lagi lewat tombol Keranjang.`)) return;
+
+  try {
+    const r = await apiFetch('/api/files/bulk', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    showNotification(r.message || `${r.deleted} file dipindahkan ke Keranjang`, 'success');
+    exitSelectionMode();
+    if (state.isSearching) {
+      searchFiles(state.searchQuery, state.extFilter, 0);
+    } else {
+      browseFolder(state.currentPath);
+    }
+    loadStats();
+    loadExtensions();
+  } catch (e) {
+    showNotification('Gagal menghapus massal: ' + e.message, 'error');
+  }
+}
+
+function bulkTagSelection() {
+  const ids = [...state.selectedIds];
+  if (ids.length === 0) return;
+
+  // Buka modal tag dalam mode massal
+  state.tagBulkIds = ids;
+  openTagModal(null, `${ids.length} file terpilih (tag akan digabung dengan tag yang sudah ada)`, []);
+}
+
+async function bulkDownloadSelection() {
+  const ids = [...state.selectedIds];
+  if (ids.length === 0) return;
+
+  setLoading(true);
+  try {
+    const res = await fetch('/api/files/bulk/download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { msg = (await res.json()).error || msg; } catch { /* abaikan */ }
+      throw new Error(msg);
+    }
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'arsip-terpilih.zip';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    showNotification(`${ids.length} file diunduh sebagai arsip-terpilih.zip`, 'success');
+  } catch (e) {
+    showNotification('Gagal mengunduh ZIP: ' + e.message, 'error');
+  } finally {
+    setLoading(false);
   }
 }
 
@@ -1184,6 +1389,14 @@ function updateToolbarMode() {
       ? 'Unggah file ke folder ini (atau seret file ke area daftar)'
       : 'Upload hanya bisa dilakukan di tampilan folder';
   }
+  // Mode seleksi tidak berlaku di tampilan keranjang
+  if (DOM.btnSelect) {
+    DOM.btnSelect.disabled = state.isTrash;
+    DOM.btnSelect.style.opacity = state.isTrash ? '0.4' : '1';
+    DOM.btnSelect.title = state.isTrash
+      ? 'Seleksi massal tidak tersedia di keranjang'
+      : 'Pilih banyak file untuk aksi massal';
+  }
 }
 
 function showError(msg) {
@@ -1273,6 +1486,15 @@ document.addEventListener('DOMContentLoaded', () => {
     tagFilters: document.getElementById('tagFilters'),
     btnUpload: document.getElementById('btnUpload'),
     uploadInput: document.getElementById('uploadInput'),
+    // Mode seleksi & aksi massal
+    btnSelect: document.getElementById('btnSelect'),
+    selectionBar: document.getElementById('selectionBar'),
+    selectionCount: document.getElementById('selectionCount'),
+    btnSelectAll: document.getElementById('btnSelectAll'),
+    btnBulkDelete: document.getElementById('btnBulkDelete'),
+    btnBulkTag: document.getElementById('btnBulkTag'),
+    btnBulkDownload: document.getElementById('btnBulkDownload'),
+    btnExitSelection: document.getElementById('btnExitSelection'),
     renameModal: document.getElementById('renameModal'),
     renameTitle: document.getElementById('renameTitle'),
     renameInput: document.getElementById('renameInput'),
@@ -1354,6 +1576,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target === DOM.renameModal) closeRenameModal();
   });
 
+  // Mode seleksi & aksi massal
+  DOM.btnSelect?.addEventListener('click', toggleSelectionMode);
+  DOM.btnSelectAll?.addEventListener('click', selectAllFiles);
+  DOM.btnBulkDelete?.addEventListener('click', bulkDeleteSelection);
+  DOM.btnBulkTag?.addEventListener('click', bulkTagSelection);
+  DOM.btnBulkDownload?.addEventListener('click', bulkDownloadSelection);
+  DOM.btnExitSelection?.addEventListener('click', exitSelectionMode);
+
   // Close modal on backdrop click
   DOM.previewModal?.addEventListener('click', (e) => {
     if (e.target === DOM.previewModal) closePreview();
@@ -1365,6 +1595,7 @@ document.addEventListener('DOMContentLoaded', () => {
       closePreview();
       closeTagModal();
       closeRenameModal();
+      exitSelectionMode();
     }
   });
 
@@ -1385,6 +1616,7 @@ window.filterByExt = filterByExt;
 window.applyAdvancedFilters = applyAdvancedFilters;
 window.resetAdvancedFilters = resetAdvancedFilters;
 window.openPreview = openPreview;
+window.openFileDefault = openFileDefault;
 window.closePreview = closePreview;
 window.setViewMode = setViewMode;
 window.loadRecentFiles = loadRecentFiles;
@@ -1400,6 +1632,7 @@ window.addTagFromSuggestion = addTagFromSuggestion;
 window.loadMoreResults = loadMoreResults;
 window.filterByTag = filterByTag;
 window.closeRenameModal = closeRenameModal;
+window.toggleSelect = toggleSelect;
 
 // ─── Context Menu ──────────────────────────────────────────────────────────────
 let ctxMenu = null;
@@ -1432,7 +1665,6 @@ function showContextMenu(e, el) {
   const mime = el.dataset.ctxMime || '';
   const ext = (el.dataset.ctxExt || name.split('.').pop() || '').toLowerCase();
   const ctxPath = el.dataset.ctxPath || '';
-  const previewType = type === 'file' ? getPreviewType(mime) : null;
 
   let items = '';
 
@@ -1467,14 +1699,6 @@ function showContextMenu(e, el) {
       </div>`;
 
     items += `<div class="ctx-divider"></div>`;
-
-    // ── Preview
-    if (previewType) {
-      items += `
-        <button class="ctx-item" onclick="ctxAction('preview', ${id}, '${escapeAttr(name)}', '${escapeAttr(mime)}')">
-          <span class="ctx-item-icon"><img src="/images/icon-pencarian.png" class="ctx-icon-img" alt="" /></span> Preview
-        </button>`;
-    }
 
     // ── Atur Tag
     const ctxTags = (el.dataset.ctxTags || '').split(',').map(t => t.trim()).filter(Boolean);
@@ -1598,12 +1822,7 @@ async function ctxAction(action, id, nameOrPath, mime, appKey, tagsCsv) {
       break;
     case 'open-default':
     case 'open':
-      try {
-        const r = await apiFetch(`/api/files/open/${id}`, { method: 'POST' });
-        showNotification(r.message || 'File dibuka', 'success');
-      } catch (e) {
-        showNotification('Gagal membuka file: ' + e.message, 'error');
-      }
+      await openFileWithDefaultApp(id);
       break;
     case 'openwith-dialog':
       try {

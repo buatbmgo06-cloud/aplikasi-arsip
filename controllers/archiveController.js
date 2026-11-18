@@ -503,6 +503,17 @@ function openFileExternal(req, res) {
     return res.status(404).json({ error: 'File fisik tidak ditemukan' });
   }
 
+  // Hanya perangkat server (localhost) yang boleh memerintahkan OS membuka
+  // aplikasi. Perangkat lain via LAN tidak boleh memunculkan aplikasi di
+  // komputer server — mereka mengunduh/melihat file lewat browser masing-masing.
+  const remoteAddr = (req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+  if (remoteAddr !== '127.0.0.1' && remoteAddr !== '::1') {
+    console.log(`[Open] Ditolak: permintaan buka aplikasi dari perangkat non-lokal (${remoteAddr})`);
+    return res.status(403).json({
+      error: 'Membuka aplikasi hanya bisa dari komputer server. Dari perangkat lain, gunakan Unduh atau klik dua kali (dibuka di tab browser).',
+    });
+  }
+
   // Gunakan execFile (bukan exec) untuk menghindari command injection
   // 'start' adalah perintah internal cmd.exe, jadi harus via cmd /c
   execFile('cmd.exe', ['/c', 'start', '', resolvedPath], { windowsHide: true }, (err) => {
@@ -987,6 +998,123 @@ function uploadFiles(req, res) {
   });
 }
 
+/**
+ * PUT /api/files/bulk/tags   body: { ids: [1,2,3], tags: "a, b" }
+ * Tambah tag ke banyak file sekaligus — tag baru DIGABUNG dengan tag
+ * yang sudah ada di tiap file (dedupe, batas 20 tag tetap berlaku).
+ */
+function bulkTagFiles(req, res) {
+  const db = getDb();
+  const ids = req.body.ids;
+  const newTags = normalizeTags(req.body?.tags ?? '');
+
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'ids harus berupa array yang tidak kosong' });
+  }
+
+  let updated = 0;
+  const errors = [];
+
+  for (const rawId of ids) {
+    const fileId = parseInt(rawId, 10);
+    if (isNaN(fileId)) {
+      errors.push({ id: rawId, error: 'ID tidak valid' });
+      continue;
+    }
+
+    const file = db.prepare(`
+      SELECT id, filename, tags FROM files WHERE id = ? AND is_deleted = 0
+    `).get(fileId);
+
+    if (!file) {
+      errors.push({ id: fileId, error: 'File tidak ditemukan' });
+      continue;
+    }
+
+    // Gabungkan tag lama + baru, dedupe case-insensitive
+    const merged = normalizeTags([...normalizeTags(file.tags || ''), ...newTags].join(','));
+
+    db.prepare(`
+      UPDATE files SET tags = ?, updated_at = datetime('now','localtime')
+      WHERE id = ?
+    `).run(merged.join(', '), fileId);
+
+    updated++;
+  }
+
+  console.log(`[BulkTag] ${updated} file diberi tag [${newTags.join(', ') || '-'}], Gagal: ${errors.length}`);
+  return res.json({
+    success: true,
+    updated,
+    errors,
+    tags: newTags,
+    message: `Tag ditambahkan ke ${updated} file (${newTags.length} tag)`,
+  });
+}
+
+/**
+ * POST /api/files/bulk/download   body: { ids: [1,2,3] }
+ * Unduh banyak file sekaligus dalam satu file ZIP.
+ */
+async function bulkDownloadFiles(req, res) {
+  const db = getDb();
+  const ids = req.body.ids;
+
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'ids harus berupa array yang tidak kosong' });
+  }
+
+  const placeholders = ids.map(() => '?').join(',');
+  const files = db.prepare(`
+    SELECT id, filename, absolute_path
+    FROM files
+    WHERE is_deleted = 0 AND id IN (${placeholders})
+  `).all(...ids);
+
+  // Filter file yang benar-benar ada di disk + validasi path
+  const available = [];
+  for (const f of files) {
+    const resolvedPath = path.resolve(f.absolute_path);
+    if (!resolvedPath.startsWith(ARCHIVE_DIR + path.sep) && resolvedPath !== ARCHIVE_DIR) continue;
+    if (fs.existsSync(resolvedPath)) available.push(f);
+  }
+
+  if (available.length === 0) {
+    return res.status(404).json({ error: 'Tidak ada file yang tersedia untuk diunduh' });
+  }
+
+  // Zip: hindari nama duplikat dengan akhiran (1), (2), dst.
+  const usedNames = new Set();
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', 'attachment; filename="arsip-terpilih.zip"');
+
+  const archive = require('archiver')('zip', { zlib: { level: 5 } });
+  archive.on('error', (err) => {
+    console.error('[BulkDownload] Error zip:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Gagal membuat ZIP: ' + err.message });
+    res.end();
+  });
+
+  archive.pipe(res);
+
+  for (const f of available) {
+    let name = f.filename;
+    let i = 1;
+    while (usedNames.has(name.toLowerCase())) {
+      const dot = f.filename.lastIndexOf('.');
+      const base = dot > 0 ? f.filename.slice(0, dot) : f.filename;
+      const ext = dot > 0 ? f.filename.slice(dot) : '';
+      name = `${base} (${i})${ext}`;
+      i++;
+    }
+    usedNames.add(name.toLowerCase());
+    archive.file(f.absolute_path, { name });
+  }
+
+  console.log(`[BulkDownload] ${available.length} file dijadikan ZIP untuk diunduh`);
+  await archive.finalize();
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // BULK DELETE
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1398,6 +1526,9 @@ module.exports = {
   renameFolder,
   uploadFiles,
   bulkDeleteFiles,
+  // Aksi massal
+  bulkTagFiles,
+  bulkDownloadFiles,
   // Tag
   getFileTags,
   updateFileTags,

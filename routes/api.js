@@ -22,6 +22,9 @@ const {
   renameFolder,
   uploadFiles,
   bulkDeleteFiles,
+  // Aksi massal
+  bulkTagFiles,
+  bulkDownloadFiles,
   // Tag
   getFileTags,
   updateFileTags,
@@ -40,6 +43,15 @@ const { addClient } = require('../services/eventsService');
 // GET /api/events — stream Server-Sent Events: dikirim event "archive-change"
 // setiap watcher mendeteksi perubahan di folder arsip (dengan debounce).
 router.get('/events', (req, res) => addClient(req, res));
+
+// ─── Aksi Massal ─────────────────────────────────────────────────────────────
+// CATATAN: route '/files/bulk/...' harus terdaftar SEBELUM route '/files/:id'
+// agar 'bulk' tidak tertelan sebagai parameter :id.
+// PUT /api/files/bulk/tags  body: { ids: [...], tags: "a, b" } — tag massal
+router.put('/files/bulk/tags', bulkTagFiles);
+
+// POST /api/files/bulk/download  body: { ids: [...] } — unduh ZIP massal
+router.post('/files/bulk/download', bulkDownloadFiles);
 
 // ─── Browse & Navigation ────────────────────────────────────────────────────
 // GET /api/files/browse?path=subfolder/path
